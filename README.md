@@ -1,17 +1,33 @@
 # Цифровая очередь
 
 MVP для хакатона ПочтаТех: предзапись, QR-талон и живая очередь.
-Стек согласован: FastAPI, PostgreSQL, React/Vite, Docker Compose.
+Стек: FastAPI, PostgreSQL, Redis, React/Vite и Docker Compose.
 
-## Текущее состояние
+## Быстрый запуск
 
-Есть frontend-прототип в innovateQueue/ и проектирование первых трёх задач тимлида.
-Backend, миграции Alembic, OpenAPI и Docker Compose ещё не реализованы.
-Форма на стартовом экране не создаёт реальные записи.
+Нужен Docker Desktop. Из корня репозитория:
 
-## Запуск frontend
+```sh
+cp .env.example .env
+docker compose up --build
+```
 
-Из корня репозитория, с установленными Node.js/npm:
+Сервис API доступен на `http://localhost:8000`.
+
+```sh
+curl http://localhost:8000/api/health
+curl http://localhost:8000/api/branches
+curl http://localhost:8000/api/branches/11111111-1111-1111-1111-111111111111/services
+```
+
+Swagger UI: `http://localhost:8000/api/docs`. Остановить сервисы:
+`docker compose down`. Данные PostgreSQL и Redis сохраняются в Docker volumes.
+Для полного очищения демонстрационных данных выполнить `docker compose down -v`.
+
+`.env` содержит только локальные значения и не попадает в Git. Для общего стенда
+измените пароли перед запуском и передавайте их через окружение или менеджер секретов.
+
+## Клиентский интерфейс
 
 ```sh
 cd innovateQueue
@@ -19,37 +35,29 @@ npm ci
 npm run dev
 ```
 
-Откройте адрес, который напечатает Vite. Проверки frontend:
+Проверки frontend:
 
 ```sh
 npm run lint
 npm run build
 ```
 
-## Модель данных и правила
+## Реализовано сейчас
 
-- [ER-схема и ответственность таблиц](docs/data-model.md)
-- [SQL-спецификация, ещё не миграция](docs/schema.sql)
-- [Поля талона и переходы состояний](docs/ticket-lifecycle.md)
-- [Алгоритм приоритета и примеры](docs/priority-algorithm.md)
-- [Конфигурация приоритетов](config/priority.yaml)
-- [Фактические проверки и следующие этапы](docs/task-report.md)
+- PostgreSQL и Redis с health-check в Docker Compose.
+- FastAPI, Alembic-миграция полной схемы и безопасные demo seed-данные.
+- `GET /api/health`: проверяет базу и Redis.
+- `GET /api/branches` и `GET /api/branches/{branch_id}/services`.
+- Статический контракт [openapi.yaml](openapi.yaml) и интерактивная документация.
+- Единый формат ошибок: `{ "error_code", "message", "details" }`.
+- Структурированные JSON-логи backend.
 
-Проверки из корня репозитория, Python 3.10+ без сторонних зависимостей:
+Предзапись, QR-выдача, ядро выбора следующего талона, WebSocket, уведомления,
+операторский и административный интерфейсы пока не реализованы. Форма Vite
+не подключена к API до фиксации контрактов соответствующих сценариев.
 
-```sh
-python3 tools/check_priority.py
-python3 -m unittest discover -s tests -v
-```
+## Репозиторий
 
-## Работа команды
-
-Изменения отправляем отдельной веткой и через Merge Request в main.
-Перед коммитом проверяем git status, добавляем только файлы своей задачи.
-CI/CD и runners не используем: проверки запускаются локально.
-PAT не хранится в исходниках или remote URL; аутентификация Git по HTTPS.
-Настройки окружения и пароли хранятся вне исходного кода.
-
-Ближайший этап: OpenAPI, backend-каркас и Alembic/Docker Compose с проверкой
-схемы на PostgreSQL. Правила v1 служат основой реализации; изменения контракта
-согласуются между backend, frontend и Infra до интеграции.
+Ветки вливаются в `main` только через Merge Request. CI/CD и runners по правилам
+хакатона не используются: перед коммитом проверки запускаются локально.
+PAT не хранится в исходниках или remote URL.

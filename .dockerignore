@@ -1,0 +1,8 @@
+.git
+.env
+.DS_Store
+**/.DS_Store
+innovateQueue/node_modules
+innovateQueue/dist
+**/__pycache__
+**/*.py[cod]

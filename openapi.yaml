@@ -1,0 +1,96 @@
+openapi: 3.1.0
+info:
+  title: Digital Queue API
+  version: 0.1.0
+  description: Initial contract for the locally runnable MVP foundation.
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Check PostgreSQL and Redis connectivity
+      responses:
+        '200':
+          description: Dependencies are available
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HealthResponse'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/branches:
+    get:
+      tags: [Branches]
+      summary: List active branches
+      responses:
+        '200':
+          description: Active branches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Branch'}
+  /api/branches/{branch_id}/services:
+    get:
+      tags: [Services]
+      summary: List services available in a branch
+      parameters:
+        - name: branch_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Available services
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Service'}
+        '404': {$ref: '#/components/responses/BranchNotFound'}
+components:
+  responses:
+    BranchNotFound:
+      description: Branch does not exist or is inactive
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    DependencyUnavailable:
+      description: PostgreSQL or Redis is unavailable
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, checks]
+      properties:
+        status: {type: string, example: ok}
+        checks:
+          type: object
+          required: [database, redis]
+          properties:
+            database: {type: string, enum: [up, down]}
+            redis: {type: string, enum: [up, down]}
+    Branch:
+      type: object
+      required: [id, postal_code, name, address, timezone]
+      properties:
+        id: {type: string, format: uuid}
+        postal_code: {type: string, example: '101000'}
+        name: {type: string}
+        address: {type: string}
+        timezone: {type: string, example: Europe/Moscow}
+    Service:
+      type: object
+      required: [id, name, average_service_seconds]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        average_service_seconds: {type: integer, minimum: 1}
+    Error:
+      type: object
+      required: [error_code, message]
+      properties:
+        error_code: {type: string}
+        message: {type: string}
+        details: {type: array, items: {type: object}}
