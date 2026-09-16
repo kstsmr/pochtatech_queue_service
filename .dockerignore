@@ -2,7 +2,7 @@
 .env
 .DS_Store
 **/.DS_Store
-innovateQueue/node_modules
-innovateQueue/dist
+frontend/node_modules
+frontend/dist
 **/__pycache__
 **/*.py[cod]

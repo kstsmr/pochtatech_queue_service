@@ -20,6 +20,8 @@ def upgrade() -> None:
     schema = schema_path.read_text(encoding="utf-8")
     schema = schema.removeprefix("-- Design specification, not an applied migration. Validate in an empty PostgreSQL database.\n")
     schema = schema.removeprefix("BEGIN;\n").removesuffix("COMMIT;\n")
+    # Added by the following migration; strip it when bootstrapping from the evolving design document.
+    schema = schema.replace("CREATE UNIQUE INDEX uq_branches_postal_code ON branches(postal_code);\n", "")
     op.execute(schema)
 
 

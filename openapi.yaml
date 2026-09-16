@@ -2,95 +2,609 @@ openapi: 3.1.0
 info:
   title: Digital Queue API
   version: 0.1.0
-  description: Initial contract for the locally runnable MVP foundation.
-servers:
-  - url: http://localhost:8000
 paths:
   /api/health:
     get:
-      tags: [Health]
-      summary: Check PostgreSQL and Redis connectivity
+      tags:
+      - Health
+      summary: Health
+      operationId: health_api_health_get
       responses:
         '200':
-          description: Dependencies are available
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/HealthResponse'}
-        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
   /api/branches:
     get:
-      tags: [Branches]
-      summary: List active branches
+      tags:
+      - Branches
+      summary: List Branches
+      operationId: list_branches_api_branches_get
       responses:
         '200':
-          description: Active branches
+          description: Successful Response
           content:
             application/json:
               schema:
+                items:
+                  $ref: '#/components/schemas/BranchResponse'
                 type: array
-                items: {$ref: '#/components/schemas/Branch'}
+                title: Response List Branches Api Branches Get
   /api/branches/{branch_id}/services:
     get:
-      tags: [Services]
-      summary: List services available in a branch
+      tags:
+      - Services
+      summary: List Branch Services
+      operationId: list_branch_services_api_branches__branch_id__services_get
       parameters:
-        - name: branch_id
-          in: path
-          required: true
-          schema: {type: string, format: uuid}
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
       responses:
         '200':
-          description: Available services
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
-                items: {$ref: '#/components/schemas/Service'}
-        '404': {$ref: '#/components/responses/BranchNotFound'}
+                items:
+                  $ref: '#/components/schemas/ServiceResponse'
+                title: Response List Branch Services Api Branches  Branch Id  Services
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/branches/code/{postal_code}:
+    get:
+      tags:
+      - Branches
+      summary: Get Branch By Code
+      operationId: get_branch_by_code_api_branches_code__postal_code__get
+      parameters:
+      - name: postal_code
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Postal Code
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/branches/{branch_id}/queue-qr:
+    get:
+      tags:
+      - Branches
+      summary: Get Branch Queue Qr Info
+      operationId: get_branch_queue_qr_info_api_branches__branch_id__queue_qr_get
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchQrResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/branches/{branch_id}/queue-qr.svg:
+    get:
+      tags:
+      - Branches
+      summary: Get Branch Queue Qr
+      operationId: get_branch_queue_qr_api_branches__branch_id__queue_qr_svg_get
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            image/svg+xml: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/branches/{branch_id}/slots:
+    get:
+      tags:
+      - Appointments
+      summary: List Appointment Slots
+      operationId: list_appointment_slots_api_branches__branch_id__slots_get
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      - name: service_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Service Id
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          title: Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppointmentSlotResponse'
+                title: Response List Appointment Slots Api Branches  Branch Id  Slots
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/bookings:
+    post:
+      tags:
+      - Appointments
+      summary: Create Booking
+      operationId: create_booking_api_bookings_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/queue/join:
+    post:
+      tags:
+      - Queue
+      summary: Join Queue By Code
+      operationId: join_queue_by_code_api_queue_join_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QrJoinRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tickets/{ticket_id}:
+    get:
+      tags:
+      - Tickets
+      summary: Get Ticket
+      operationId: get_ticket_api_tickets__ticket_id__get
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: X-Session-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 20
+          title: X-Session-Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tickets/{ticket_id}/cancel:
+    post:
+      tags:
+      - Tickets
+      summary: Cancel Ticket
+      operationId: cancel_ticket_api_tickets__ticket_id__cancel_post
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Idempotency-Key
+      - name: X-Session-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 20
+          title: X-Session-Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
-  responses:
-    BranchNotFound:
-      description: Branch does not exist or is inactive
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/Error'}
-    DependencyUnavailable:
-      description: PostgreSQL or Redis is unavailable
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/Error'}
   schemas:
+    AppointmentSlotResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        ends_at:
+          type: string
+          format: date-time
+          title: Ends At
+        available:
+          type: integer
+          minimum: 0.0
+          title: Available
+      type: object
+      required:
+      - id
+      - starts_at
+      - ends_at
+      - available
+      title: AppointmentSlotResponse
+    BookingCreateRequest:
+      properties:
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        service_id:
+          type: string
+          format: uuid
+          title: Service Id
+        slot_id:
+          type: string
+          format: uuid
+          title: Slot Id
+      additionalProperties: false
+      type: object
+      required:
+      - branch_id
+      - service_id
+      - slot_id
+      title: BookingCreateRequest
+    BranchQrResponse:
+      properties:
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        postal_code:
+          type: string
+          title: Postal Code
+        join_url:
+          type: string
+          title: Join Url
+        qr_svg_path:
+          type: string
+          title: Qr Svg Path
+      type: object
+      required:
+      - branch_id
+      - postal_code
+      - join_url
+      - qr_svg_path
+      title: BranchQrResponse
+    BranchResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        postal_code:
+          type: string
+          title: Postal Code
+        name:
+          type: string
+          title: Name
+        address:
+          type: string
+          title: Address
+        timezone:
+          type: string
+          title: Timezone
+      type: object
+      required:
+      - id
+      - postal_code
+      - name
+      - address
+      - timezone
+      title: BranchResponse
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthChecks:
+      properties:
+        database:
+          type: string
+          title: Database
+        redis:
+          type: string
+          title: Redis
+      type: object
+      required:
+      - database
+      - redis
+      title: HealthChecks
     HealthResponse:
-      type: object
-      required: [status, checks]
       properties:
-        status: {type: string, example: ok}
+        status:
+          type: string
+          title: Status
         checks:
-          type: object
-          required: [database, redis]
-          properties:
-            database: {type: string, enum: [up, down]}
-            redis: {type: string, enum: [up, down]}
-    Branch:
+          $ref: '#/components/schemas/HealthChecks'
       type: object
-      required: [id, postal_code, name, address, timezone]
+      required:
+      - status
+      - checks
+      title: HealthResponse
+    QrJoinRequest:
       properties:
-        id: {type: string, format: uuid}
-        postal_code: {type: string, example: '101000'}
-        name: {type: string}
-        address: {type: string}
-        timezone: {type: string, example: Europe/Moscow}
-    Service:
+        branch_code:
+          type: string
+          pattern: ^\d{6}$
+          title: Branch Code
+        service_id:
+          type: string
+          format: uuid
+          title: Service Id
+      additionalProperties: false
       type: object
-      required: [id, name, average_service_seconds]
+      required:
+      - branch_code
+      - service_id
+      title: QrJoinRequest
+    ServiceResponse:
       properties:
-        id: {type: string, format: uuid}
-        name: {type: string}
-        average_service_seconds: {type: integer, minimum: 1}
-    Error:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        average_service_seconds:
+          type: integer
+          title: Average Service Seconds
       type: object
-      required: [error_code, message]
+      required:
+      - id
+      - name
+      - average_service_seconds
+      title: ServiceResponse
+    TicketResponse:
       properties:
-        error_code: {type: string}
-        message: {type: string}
-        details: {type: array, items: {type: object}}
+        id:
+          type: string
+          format: uuid
+          title: Id
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        service_id:
+          type: string
+          format: uuid
+          title: Service Id
+        ticket_number:
+          type: integer
+          title: Ticket Number
+        source:
+          type: string
+          enum:
+          - prebooking
+          - qr
+          - walk_in
+          title: Source
+        status:
+          type: string
+          enum:
+          - booked
+          - waiting
+          - called
+          - serving
+          - served
+          - no_show
+          - cancelled
+          title: Status
+        scheduled_time:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Scheduled Time
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        window_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Window Number
+        position:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Position
+        estimated_wait_minutes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Estimated Wait Minutes
+        branch_name:
+          type: string
+          title: Branch Name
+        branch_address:
+          type: string
+          title: Branch Address
+        service_name:
+          type: string
+          title: Service Name
+        session_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Session Token
+      type: object
+      required:
+      - id
+      - branch_id
+      - service_id
+      - ticket_number
+      - source
+      - status
+      - scheduled_time
+      - created_at
+      - updated_at
+      - window_number
+      - position
+      - estimated_wait_minutes
+      - branch_name
+      - branch_address
+      - service_name
+      title: TicketResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

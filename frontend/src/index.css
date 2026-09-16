@@ -1,0 +1,55 @@
+:root {
+  --blue: #2450a4;
+  --blue-soft: #e4ecf8;
+  --red: #b85c52;
+  --red-soft: #f3e3e0;
+  --accent: #9fc5b4;
+  --accent-soft: #e5f0eb;
+  --ink: #17212b;
+  --muted: #5d6874;
+  --paper: #f3f5f4;
+  --surface: #ffffff;
+  --line: #dce1e3;
+  --line-strong: #aeb7bc;
+  --sans: Inter, Arial, Helvetica, sans-serif;
+  --serif: Georgia, 'Times New Roman', serif;
+  font-family: var(--sans);
+  color: var(--muted);
+  background: var(--paper);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--paper);
+}
+
+button,
+input,
+select {
+  letter-spacing: 0;
+}
+
+button,
+select {
+  touch-action: manipulation;
+}
+
+img {
+  max-width: 100%;
+}

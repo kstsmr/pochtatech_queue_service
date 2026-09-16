@@ -1,5 +1,5 @@
 {
-  "name": "innovatequeue",
+  "name": "digital-queue-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "lucide-react": "^1.46.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -4,6 +4,7 @@ CREATE TABLE branches (
     id uuid PRIMARY KEY, postal_code text NOT NULL, name text NOT NULL,
     address text NOT NULL, timezone text NOT NULL, active boolean NOT NULL DEFAULT true
 );
+CREATE UNIQUE INDEX uq_branches_postal_code ON branches(postal_code);
 CREATE TABLE services (
     id uuid PRIMARY KEY, name text NOT NULL, active boolean NOT NULL DEFAULT true
 );

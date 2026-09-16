@@ -35,6 +35,6 @@ app.add_middleware(
     allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Idempotency-Key"],
+    allow_headers=["Content-Type", "Idempotency-Key", "X-Session-Token"],
 )
 app.include_router(router)

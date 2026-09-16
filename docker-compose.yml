@@ -45,6 +45,18 @@ services:
       timeout: 5s
       retries: 12
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ""
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_BIND_HOST:-127.0.0.1}:3000:80"
+
 volumes:
   postgres_data:
   redis_data:
