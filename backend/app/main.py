@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import router
+from app.api.staff_routes import router as staff_router
 from app.core.config import settings
 from app.core.errors import ApiError, api_error_handler, http_error_handler, validation_error_handler
 from app.core.logging import configure_logging
@@ -35,6 +36,7 @@ app.add_middleware(
     allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Idempotency-Key", "X-Session-Token"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Session-Token"],
 )
 app.include_router(router)
+app.include_router(staff_router)

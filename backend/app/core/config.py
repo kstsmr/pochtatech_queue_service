@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     sync_database_url: PostgresDsn
     redis_url: RedisDsn
     session_token_secret: SecretStr
+    demo_staff_pin: SecretStr
     public_client_url: AnyHttpUrl = "http://localhost:3000"
 
 

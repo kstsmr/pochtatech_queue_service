@@ -1,6 +1,5 @@
-import { ArrowRight, CalendarClock, QrCode, TicketCheck } from 'lucide-react'
+import { ArrowRight, CalendarClock, Clock3, QrCode, TicketCheck } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import postOfficeImage from '../assets/post-office-interior.jpg'
 import { BranchSelect } from '../components/BranchSelect'
 import { useBranches } from '../hooks/useCatalog'
 import { useState } from 'react'
@@ -65,18 +64,29 @@ export function HomePage() {
             {branches.loading && 'Проверяем доступные отделения'}
             {!branches.loading && branches.error && 'Сервер очереди временно недоступен'}
             {!branches.loading && !branches.error && selectedBranch && `${selectedBranch.name} выбрано`}
-            {!branches.loading && !branches.error && !selectedBranch && `${branches.data.length} отделение доступно для демо`}
+            {!branches.loading && !branches.error && !selectedBranch && `${branches.data.length} отделений доступно для демо`}
           </div>
         </div>
 
-        <figure className="branch-figure">
-          <img src={postOfficeImage} alt="Светлый зал современного почтового отделения" />
-          <figcaption>
-            <span>Отделение 101000</span>
-            <strong>Мясницкая, 26</strong>
-          </figcaption>
-          <div className="figure-stamp" aria-hidden="true">10:24</div>
-        </figure>
+        <div className="queue-window" aria-label="Состояние электронной очереди">
+          <div className="queue-window-topline">
+            <span><i aria-hidden="true" /> Электронная очередь</span>
+            <Clock3 size={17} aria-hidden="true" />
+          </div>
+          <div className="queue-display">
+            <span>Сейчас вызывается</span>
+            <strong>А 024</strong>
+            <div><small>Пройдите к окну</small><b>03</b></div>
+          </div>
+          <div className="queue-progress" aria-hidden="true"><span /></div>
+          <div className="queue-window-footer">
+            <span><small>Перед вами</small><strong>2 человека</strong></span>
+            <span><small>Ожидание</small><strong>≈ 8 минут</strong></span>
+          </div>
+          <div className="queue-ticker" aria-hidden="true">
+            <span>А 021 · окно 01</span><span>Б 014 · окно 04</span><span>А 024 · окно 03</span>
+          </div>
+        </div>
       </section>
 
       <section className="route-board" aria-label="Варианты посещения">

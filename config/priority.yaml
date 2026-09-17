@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "rule_version": 2,
   "early_minutes": 10,
   "grace_minutes": 15,
   "max_wait_minutes": {"prebooking": 30, "qr": 30, "walk_in": 20},
-  "levels": {"overdue": 0, "appointment": 1, "qr": 2, "walk_in": 2, "late_prebooking": 2},
-  "call_timeout_minutes": 3
+  "levels": {"overdue": 0, "appointment": 1, "qr": 2, "walk_in": 2, "late_prebooking": 2}
 }

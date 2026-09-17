@@ -51,3 +51,51 @@ export type TicketSession = {
   ticketId: string
   sessionToken: string
 }
+
+export type StaffSession = {
+  token: string
+  expires_at: string
+  employee_code: string
+  display_name: string
+  role: 'operator' | 'manager'
+  branch: Branch
+}
+
+export type StaffIdentity = Omit<StaffSession, 'token' | 'expires_at'>
+
+export type StaffTicket = {
+  id: string
+  ticket_number: number
+  source: Ticket['source']
+  status: TicketStatus
+  service_id: string
+  service_name: string
+  window_id: string | null
+  window_number: number | null
+  target_window_id: string | null
+  scheduled_time: string | null
+  created_at: string
+  called_at: string | null
+  waiting_minutes: number
+  return_count: number
+  redirect_count: number
+}
+
+export type StaffWindow = {
+  id: string
+  number: number
+  status: 'closed' | 'open' | 'draining'
+  version: number
+  owned_by_current_session: boolean
+  operator_code: string | null
+  service_ids: string[]
+  service_names: string[]
+  active_ticket: StaffTicket | null
+}
+
+export type StaffIncident = {
+  id: string
+  category: 'technical' | 'operational'
+  description: string
+  created_at: string
+}

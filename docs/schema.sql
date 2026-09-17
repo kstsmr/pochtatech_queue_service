@@ -14,11 +14,35 @@ CREATE TABLE branch_services (
     average_service_seconds integer NOT NULL CHECK (average_service_seconds > 0),
     PRIMARY KEY (branch_id, service_id)
 );
+CREATE TABLE staff_members (
+    id uuid PRIMARY KEY, branch_id uuid NOT NULL REFERENCES branches(id),
+    employee_code text NOT NULL, display_name text NOT NULL,
+    role text NOT NULL CHECK (role IN ('operator', 'manager')),
+    pin_salt bytea NOT NULL, pin_hash bytea NOT NULL, active boolean NOT NULL DEFAULT true,
+    failed_login_count integer NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
+    locked_until timestamptz, created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    updated_at timestamptz NOT NULL DEFAULT clock_timestamp(), UNIQUE (branch_id, id)
+);
+CREATE UNIQUE INDEX staff_members_branch_code ON staff_members(branch_id, lower(employee_code));
+CREATE INDEX staff_members_active_branch ON staff_members(branch_id, role) WHERE active;
+CREATE TABLE staff_sessions (
+    id uuid PRIMARY KEY, branch_id uuid NOT NULL REFERENCES branches(id),
+    staff_member_id uuid,
+    employee_code text NOT NULL, role text NOT NULL CHECK (role IN ('operator', 'manager')),
+    token_hash text NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(), expires_at timestamptz NOT NULL,
+    revoked_at timestamptz, CHECK (expires_at > created_at),
+    FOREIGN KEY (branch_id, staff_member_id) REFERENCES staff_members(branch_id, id)
+);
+CREATE INDEX staff_sessions_branch ON staff_sessions(branch_id, expires_at);
+CREATE INDEX staff_sessions_member_active ON staff_sessions(staff_member_id, expires_at) WHERE revoked_at IS NULL;
 CREATE TABLE windows (
     id uuid PRIMARY KEY, branch_id uuid NOT NULL REFERENCES branches(id),
     number integer NOT NULL CHECK (number > 0),
     status text NOT NULL DEFAULT 'closed' CHECK (status IN ('closed', 'open', 'draining')),
+    operator_session_id uuid UNIQUE REFERENCES staff_sessions(id),
     version bigint NOT NULL DEFAULT 1 CHECK (version > 0),
+    CONSTRAINT window_operator_required CHECK ((status = 'closed') = (operator_session_id IS NULL)),
     UNIQUE (branch_id, id), UNIQUE (branch_id, number)
 );
 CREATE TABLE window_services (

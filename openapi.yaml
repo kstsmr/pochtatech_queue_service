@@ -327,6 +327,551 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/login:
+    post:
+      tags:
+      - Staff
+      summary: Staff Login
+      operationId: staff_login_api_staff_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffLoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffSessionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/me:
+    get:
+      tags:
+      - Staff
+      summary: Staff Me
+      operationId: staff_me_api_staff_me_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffIdentityResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/logout:
+    post:
+      tags:
+      - Staff
+      summary: Staff Logout
+      operationId: staff_logout_api_staff_logout_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffLogoutResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/windows:
+    get:
+      tags:
+      - Staff
+      summary: Staff Windows
+      operationId: staff_windows_api_staff_windows_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StaffWindowResponse'
+                title: Response Staff Windows Api Staff Windows Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/windows/{window_id}/open:
+    post:
+      tags:
+      - Staff
+      summary: Staff Open Window
+      operationId: staff_open_window_api_staff_windows__window_id__open_post
+      parameters:
+      - name: window_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Window Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WindowOpenRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffWindowResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/windows/{window_id}/close:
+    post:
+      tags:
+      - Staff
+      summary: Staff Close Window
+      operationId: staff_close_window_api_staff_windows__window_id__close_post
+      parameters:
+      - name: window_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Window Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffWindowResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/queue:
+    get:
+      tags:
+      - Staff
+      summary: Staff Queue
+      operationId: staff_queue_api_staff_queue_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StaffTicketResponse'
+                title: Response Staff Queue Api Staff Queue Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/walk-ins:
+    post:
+      tags:
+      - Staff
+      summary: Staff Create Walk In
+      operationId: staff_create_walk_in_api_staff_walk_ins_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Idempotency-Key
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalkInCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/windows/{window_id}/call-next:
+    post:
+      tags:
+      - Staff
+      summary: Staff Call Next
+      operationId: staff_call_next_api_staff_windows__window_id__call_next_post
+      parameters:
+      - name: window_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Window Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/tickets/{ticket_id}/start:
+    post:
+      tags:
+      - Staff
+      summary: Staff Start Ticket
+      operationId: staff_start_ticket_api_staff_tickets__ticket_id__start_post
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/tickets/{ticket_id}/recall:
+    post:
+      tags:
+      - Staff
+      summary: Staff Recall Ticket
+      operationId: staff_recall_ticket_api_staff_tickets__ticket_id__recall_post
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/tickets/{ticket_id}/no-show:
+    post:
+      tags:
+      - Staff
+      summary: Staff Mark No Show
+      operationId: staff_mark_no_show_api_staff_tickets__ticket_id__no_show_post
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/tickets/{ticket_id}/complete:
+    post:
+      tags:
+      - Staff
+      summary: Staff Complete Ticket
+      operationId: staff_complete_ticket_api_staff_tickets__ticket_id__complete_post
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/tickets/{ticket_id}/return:
+    post:
+      tags:
+      - Staff
+      summary: Staff Return Ticket
+      operationId: staff_return_ticket_api_staff_tickets__ticket_id__return_post
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/tickets/{ticket_id}/redirect:
+    post:
+      tags:
+      - Staff
+      summary: Staff Redirect Ticket
+      operationId: staff_redirect_ticket_api_staff_tickets__ticket_id__redirect_post
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RedirectTicketRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffTicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/staff/incidents:
+    post:
+      tags:
+      - Staff
+      summary: Staff Create Incident
+      operationId: staff_create_incident_api_staff_incidents_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AppointmentSlotResponse:
@@ -457,6 +1002,63 @@ components:
       - status
       - checks
       title: HealthResponse
+    IncidentCreateRequest:
+      properties:
+        category:
+          type: string
+          enum:
+          - technical
+          - operational
+          title: Category
+        description:
+          type: string
+          maxLength: 1000
+          minLength: 5
+          title: Description
+        window_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Window Id
+        ticket_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Ticket Id
+      additionalProperties: false
+      type: object
+      required:
+      - category
+      - description
+      title: IncidentCreateRequest
+    IncidentResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        category:
+          type: string
+          enum:
+          - technical
+          - operational
+          title: Category
+        description:
+          type: string
+          title: Description
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - category
+      - description
+      - created_at
+      title: IncidentResponse
     QrJoinRequest:
       properties:
         branch_code:
@@ -473,6 +1075,23 @@ components:
       - branch_code
       - service_id
       title: QrJoinRequest
+    RedirectTicketRequest:
+      properties:
+        service_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Service Id
+        target_window_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Target Window Id
+      additionalProperties: false
+      type: object
+      title: RedirectTicketRequest
     ServiceResponse:
       properties:
         id:
@@ -491,6 +1110,242 @@ components:
       - name
       - average_service_seconds
       title: ServiceResponse
+    StaffIdentityResponse:
+      properties:
+        employee_code:
+          type: string
+          title: Employee Code
+        display_name:
+          type: string
+          title: Display Name
+        role:
+          type: string
+          enum:
+          - operator
+          - manager
+          title: Role
+        branch:
+          $ref: '#/components/schemas/BranchResponse'
+      type: object
+      required:
+      - employee_code
+      - display_name
+      - role
+      - branch
+      title: StaffIdentityResponse
+    StaffLoginRequest:
+      properties:
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        employee_code:
+          type: string
+          maxLength: 50
+          minLength: 2
+          pattern: ^[A-Za-zА-Яа-яЁё0-9._ -]+$
+          title: Employee Code
+        pin:
+          type: string
+          maxLength: 64
+          minLength: 4
+          title: Pin
+      additionalProperties: false
+      type: object
+      required:
+      - branch_id
+      - employee_code
+      - pin
+      title: StaffLoginRequest
+    StaffLogoutResponse:
+      properties:
+        revoked:
+          type: boolean
+          title: Revoked
+      type: object
+      required:
+      - revoked
+      title: StaffLogoutResponse
+    StaffSessionResponse:
+      properties:
+        token:
+          type: string
+          title: Token
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        employee_code:
+          type: string
+          title: Employee Code
+        display_name:
+          type: string
+          title: Display Name
+        role:
+          type: string
+          enum:
+          - operator
+          - manager
+          title: Role
+        branch:
+          $ref: '#/components/schemas/BranchResponse'
+      type: object
+      required:
+      - token
+      - expires_at
+      - employee_code
+      - display_name
+      - role
+      - branch
+      title: StaffSessionResponse
+    StaffTicketResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        ticket_number:
+          type: integer
+          title: Ticket Number
+        source:
+          type: string
+          enum:
+          - prebooking
+          - qr
+          - walk_in
+          title: Source
+        status:
+          type: string
+          enum:
+          - booked
+          - waiting
+          - called
+          - serving
+          - served
+          - no_show
+          - cancelled
+          title: Status
+        service_id:
+          type: string
+          format: uuid
+          title: Service Id
+        service_name:
+          type: string
+          title: Service Name
+        window_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Window Id
+        window_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Window Number
+        target_window_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Target Window Id
+        scheduled_time:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Scheduled Time
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        called_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Called At
+        waiting_minutes:
+          type: integer
+          title: Waiting Minutes
+        return_count:
+          type: integer
+          title: Return Count
+        redirect_count:
+          type: integer
+          title: Redirect Count
+      type: object
+      required:
+      - id
+      - ticket_number
+      - source
+      - status
+      - service_id
+      - service_name
+      - window_id
+      - window_number
+      - target_window_id
+      - scheduled_time
+      - created_at
+      - called_at
+      - waiting_minutes
+      - return_count
+      - redirect_count
+      title: StaffTicketResponse
+    StaffWindowResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        number:
+          type: integer
+          title: Number
+        status:
+          type: string
+          enum:
+          - closed
+          - open
+          - draining
+          title: Status
+        version:
+          type: integer
+          title: Version
+        owned_by_current_session:
+          type: boolean
+          title: Owned By Current Session
+        operator_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Code
+        service_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: Service Ids
+        service_names:
+          items:
+            type: string
+          type: array
+          title: Service Names
+        active_ticket:
+          anyOf:
+          - $ref: '#/components/schemas/StaffTicketResponse'
+          - type: 'null'
+      type: object
+      required:
+      - id
+      - number
+      - status
+      - version
+      - owned_by_current_session
+      - operator_code
+      - service_ids
+      - service_names
+      - active_ticket
+      title: StaffWindowResponse
     TicketResponse:
       properties:
         id:
@@ -608,3 +1463,28 @@ components:
       - msg
       - type
       title: ValidationError
+    WalkInCreateRequest:
+      properties:
+        service_id:
+          type: string
+          format: uuid
+          title: Service Id
+      additionalProperties: false
+      type: object
+      required:
+      - service_id
+      title: WalkInCreateRequest
+    WindowOpenRequest:
+      properties:
+        service_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          minItems: 1
+          title: Service Ids
+      additionalProperties: false
+      type: object
+      required:
+      - service_ids
+      title: WindowOpenRequest

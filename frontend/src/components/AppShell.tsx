@@ -29,10 +29,10 @@ export function AppShell() {
           ))}
         </nav>
 
-        <button className="staff-button" type="button" title="Вход для сотрудников пока недоступен" disabled>
+        <NavLink className="staff-button" to="/staff">
           <UserRound size={18} aria-hidden="true" />
           <span>Сотрудникам</span>
-        </button>
+        </NavLink>
       </header>
 
       <main id="content" className="page-frame" key={location.pathname}>

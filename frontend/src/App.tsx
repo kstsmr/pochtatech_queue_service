@@ -7,11 +7,13 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { QrEntryPage } from './pages/QrEntryPage'
 import { QrStandPage } from './pages/QrStandPage'
 import { TicketPage } from './pages/TicketPage'
+import { StaffPage } from './pages/StaffPage'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="staff" element={<StaffPage />} />
         <Route element={<AppShell />}>
           <Route index element={<HomePage />} />
           <Route path="book" element={<BookingPage />} />

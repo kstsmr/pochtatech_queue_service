@@ -1,4 +1,15 @@
-import type { AppointmentSlot, Branch, BranchQr, Service, Ticket } from './types'
+import type {
+  AppointmentSlot,
+  Branch,
+  BranchQr,
+  Service,
+  StaffIdentity,
+  StaffIncident,
+  StaffSession,
+  StaffTicket,
+  StaffWindow,
+  Ticket,
+} from './types'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 
@@ -87,4 +98,81 @@ export const queueApi = {
       method: 'POST',
       headers: { 'X-Session-Token': sessionToken, 'Idempotency-Key': idempotencyKey },
     }),
+}
+
+function staffHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` }
+}
+
+export const staffApi = {
+  login: (branchId: string, employeeCode: string, pin: string) =>
+    request<StaffSession>('/api/staff/login', {
+      method: 'POST',
+      body: { branch_id: branchId, employee_code: employeeCode, pin },
+    }),
+  me: (token: string, signal?: AbortSignal) =>
+    request<StaffIdentity>('/api/staff/me', { headers: staffHeaders(token), signal }),
+  logout: (token: string) =>
+    request<{ revoked: boolean }>('/api/staff/logout', {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  getWindows: (token: string, signal?: AbortSignal) =>
+    request<StaffWindow[]>('/api/staff/windows', { headers: staffHeaders(token), signal }),
+  getQueue: (token: string, signal?: AbortSignal) =>
+    request<StaffTicket[]>('/api/staff/queue', { headers: staffHeaders(token), signal }),
+  openWindow: (token: string, windowId: string, serviceIds: string[]) =>
+    request<StaffWindow>(`/api/staff/windows/${encodeURIComponent(windowId)}/open`, {
+      method: 'POST', headers: staffHeaders(token), body: { service_ids: serviceIds },
+    }),
+  closeWindow: (token: string, windowId: string) =>
+    request<StaffWindow>(`/api/staff/windows/${encodeURIComponent(windowId)}/close`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  callNext: (token: string, windowId: string) =>
+    request<StaffTicket>(`/api/staff/windows/${encodeURIComponent(windowId)}/call-next`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  createWalkIn: (token: string, serviceId: string) =>
+    request<StaffTicket>('/api/staff/walk-ins', {
+      method: 'POST',
+      headers: { ...staffHeaders(token), 'Idempotency-Key': crypto.randomUUID() },
+      body: { service_id: serviceId },
+    }),
+  startTicket: (token: string, ticketId: string) =>
+    request<StaffTicket>(`/api/staff/tickets/${encodeURIComponent(ticketId)}/start`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  recallTicket: (token: string, ticketId: string) =>
+    request<StaffTicket>(`/api/staff/tickets/${encodeURIComponent(ticketId)}/recall`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  markNoShow: (token: string, ticketId: string) =>
+    request<StaffTicket>(`/api/staff/tickets/${encodeURIComponent(ticketId)}/no-show`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  completeTicket: (token: string, ticketId: string) =>
+    request<StaffTicket>(`/api/staff/tickets/${encodeURIComponent(ticketId)}/complete`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  returnTicket: (token: string, ticketId: string) =>
+    request<StaffTicket>(`/api/staff/tickets/${encodeURIComponent(ticketId)}/return`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  redirectTicket: (token: string, ticketId: string, serviceId: string | null, targetWindowId: string | null) =>
+    request<StaffTicket>(`/api/staff/tickets/${encodeURIComponent(ticketId)}/redirect`, {
+      method: 'POST',
+      headers: staffHeaders(token),
+      body: { service_id: serviceId || null, target_window_id: targetWindowId || null },
+    }),
+  createIncident: (
+    token: string,
+    category: 'technical' | 'operational',
+    description: string,
+    windowId: string | null,
+    ticketId: string | null,
+  ) => request<StaffIncident>('/api/staff/incidents', {
+    method: 'POST',
+    headers: staffHeaders(token),
+    body: { category, description, window_id: windowId, ticket_id: ticketId },
+  }),
 }

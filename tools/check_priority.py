@@ -13,12 +13,12 @@ def validate(config):
         if type(value) is not int or not minimum <= value <= maximum:
             raise ValueError(f"{label}: expected integer in [{minimum}, {maximum}]")
 
-    keys(config, ("schema_version", "early_minutes", "grace_minutes",
-                  "max_wait_minutes", "levels", "call_timeout_minutes"), "config")
-    integer(config["schema_version"], 1, 1, "schema_version")
+    keys(config, ("schema_version", "rule_version", "early_minutes", "grace_minutes",
+                  "max_wait_minutes", "levels"), "config")
+    integer(config["schema_version"], 2, 2, "schema_version")
+    integer(config["rule_version"], 1, 1_000_000, "rule_version")
     for name in ("early_minutes", "grace_minutes"):
         integer(config[name], 0, 120, name)
-    integer(config["call_timeout_minutes"], 1, 30, "call_timeout_minutes")
     keys(config["max_wait_minutes"], ("prebooking", "qr", "walk_in"), "max_wait_minutes")
     for name, value in config["max_wait_minutes"].items():
         integer(value, 1, 240, name)
@@ -30,9 +30,11 @@ def validate(config):
         raise ValueError("overdue must outrank every other level")
     if any(levels["appointment"] > levels[name] for name in ("qr", "walk_in", "late_prebooking")):
         raise ValueError("appointment must not rank below ordinary tickets")
+    if config["max_wait_minutes"]["prebooking"] < config["early_minutes"] + config["grace_minutes"]:
+        raise ValueError("prebooking max wait must cover the full appointment window")
 
 
 if __name__ == "__main__":
     path = Path(__file__).resolve().parents[1] / "config" / "priority.yaml"
     validate(json.loads(path.read_text(encoding="utf-8")))
-    print("Priority configuration is valid (schema v1).")
+    print("Priority configuration is valid (schema v2).")

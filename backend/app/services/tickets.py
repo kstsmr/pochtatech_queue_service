@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.api.schemas import TicketResponse
 from app.core.config import settings
 from app.core.errors import ApiError
+from app.core.priority import priority_parameters, priority_sql, validate_priority_config
 
 
 def request_fingerprint(payload: dict[str, Any]) -> str:
@@ -121,16 +122,21 @@ async def add_ticket_event(
     new_status: str,
     before_state: dict[str, Any] | None,
     after_state: dict[str, Any],
+    actor_id: str = "client",
+    actor_role: str = "client",
+    reason: str | None = None,
+    rule_version: int | None = None,
 ) -> None:
     await connection.execute(
         text(
             """
             INSERT INTO ticket_events
                 (id, branch_id, ticket_id, ticket_version, action, actor_id, actor_role,
-                 old_status, new_status, before_state, after_state)
+                 old_status, new_status, before_state, after_state, reason, rule_version)
             VALUES
-                (:id, :branch_id, :ticket_id, :version, :action, 'client', 'client',
-                 :old_status, :new_status, CAST(:before_state AS jsonb), CAST(:after_state AS jsonb))
+                (:id, :branch_id, :ticket_id, :version, :action, :actor_id, :actor_role,
+                 :old_status, :new_status, CAST(:before_state AS jsonb), CAST(:after_state AS jsonb),
+                 :reason, :rule_version)
             """
         ),
         {
@@ -143,6 +149,10 @@ async def add_ticket_event(
             "new_status": new_status,
             "before_state": json.dumps(before_state) if before_state is not None else None,
             "after_state": json.dumps(after_state),
+            "actor_id": actor_id,
+            "actor_role": actor_role,
+            "reason": reason,
+            "rule_version": rule_version,
         },
     )
 
@@ -185,7 +195,7 @@ async def ticket_response(
         text(
             """
             SELECT t.id, t.branch_id, t.service_id, t.ticket_number, t.source, t.status,
-                   t.scheduled_time, t.created_at, t.updated_at, t.queue_sequence,
+                   t.scheduled_time, t.eligible_at, t.created_at, t.updated_at, t.queue_sequence,
                    w.number AS window_number, b.name AS branch_name, b.address AS branch_address,
                    s.name AS service_name, bs.average_service_seconds
             FROM tickets t
@@ -207,25 +217,97 @@ async def ticket_response(
     position: int | None = None
     estimated_wait: int | None = None
     if row["status"] == "waiting":
+        rule = (
+            await connection.execute(
+                text(
+                    """
+                    SELECT version, config FROM priority_rules
+                    WHERE branch_id = :branch_id AND active
+                    ORDER BY version DESC LIMIT 1
+                    """
+                ),
+                {"branch_id": row["branch_id"]},
+            )
+        ).mappings().one_or_none()
+        if rule is None:
+            raise ApiError(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "priority_rule_missing",
+                "Queue priority rule is unavailable",
+            )
+        try:
+            config = validate_priority_config(rule["config"])
+            if int(config["rule_version"]) != rule["version"]:
+                raise ValueError("priority rule version does not match its payload")
+        except ValueError as error:
+            raise ApiError(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "priority_rule_invalid",
+                "Active queue priority rule is invalid",
+            ) from error
+        priority_case = priority_sql("candidate")
         position = int(
             await connection.scalar(
                 text(
-                    """
-                    SELECT count(*)
-                    FROM tickets
-                    WHERE branch_id = :branch_id AND service_id = :service_id
-                      AND status = 'waiting' AND queue_sequence <= :queue_sequence
+                    f"""
+                    WITH ranked AS (
+                        SELECT candidate.id, candidate.eligible_at, candidate.queue_sequence,
+                               {priority_case} AS priority_level
+                        FROM tickets candidate
+                        WHERE candidate.branch_id = :branch_id
+                          AND candidate.service_id = :service_id
+                          AND candidate.status = 'waiting'
+                    ), current_ticket AS (
+                        SELECT priority_level, eligible_at, queue_sequence, id
+                        FROM ranked WHERE id = :ticket_id
+                    )
+                    SELECT count(*) FROM ranked, current_ticket
+                    WHERE (ranked.priority_level, ranked.eligible_at, ranked.queue_sequence, ranked.id)
+                       <= (current_ticket.priority_level, current_ticket.eligible_at,
+                           current_ticket.queue_sequence, current_ticket.id)
                     """
                 ),
                 {
                     "branch_id": row["branch_id"],
                     "service_id": row["service_id"],
-                    "queue_sequence": row["queue_sequence"],
+                    "ticket_id": row["id"],
+                    **priority_parameters(config),
                 },
             )
             or 0
         )
-        estimated_wait = math.ceil(max(position - 1, 0) * row["average_service_seconds"] / 60)
+        active_ahead = int(
+            await connection.scalar(
+                text(
+                    """
+                    SELECT count(*) FROM tickets
+                    WHERE branch_id = :branch_id AND service_id = :service_id
+                      AND status IN ('called', 'serving')
+                    """
+                ),
+                {"branch_id": row["branch_id"], "service_id": row["service_id"]},
+            )
+            or 0
+        )
+        open_windows = int(
+            await connection.scalar(
+                text(
+                    """
+                    SELECT count(DISTINCT w.id)
+                    FROM windows w
+                    JOIN window_services ws ON ws.branch_id = w.branch_id AND ws.window_id = w.id
+                    WHERE w.branch_id = :branch_id AND ws.service_id = :service_id
+                      AND w.status = 'open'
+                    """
+                ),
+                {"branch_id": row["branch_id"], "service_id": row["service_id"]},
+            )
+            or 0
+        )
+        work_ahead = max(position - 1, 0) + active_ahead
+        estimated_wait = math.ceil(
+            work_ahead * row["average_service_seconds"] / max(open_windows, 1) / 60
+        )
 
     return TicketResponse(
         **{key: row[key] for key in (

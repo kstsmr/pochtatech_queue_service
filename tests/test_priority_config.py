@@ -48,7 +48,19 @@ class PriorityConfigTests(unittest.TestCase):
         validate(self.config)
 
     def test_unknown_version_is_rejected(self):
-        self.config["schema_version"] = 2
+        self.config["schema_version"] = 3
+        with self.assertRaises(ValueError):
+            validate(self.config)
+
+    def test_rule_version_must_be_positive(self):
+        self.config["rule_version"] = 0
+        with self.assertRaises(ValueError):
+            validate(self.config)
+
+    def test_prebooking_wait_covers_appointment_window(self):
+        self.config["max_wait_minutes"]["prebooking"] = (
+            self.config["early_minutes"] + self.config["grace_minutes"] - 1
+        )
         with self.assertRaises(ValueError):
             validate(self.config)
 
