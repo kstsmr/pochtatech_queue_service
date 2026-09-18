@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Keyboard, QrCode } from 'lucide-react'
+import { ArrowLeft, Check, Keyboard, MapPin, QrCode, ScanLine } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -10,7 +10,9 @@ import { saveTicketSession } from '../lib/ticketSession'
 export function QrEntryPage() {
   const [searchParams] = useSearchParams()
   const scannedCode = searchParams.get('branch') ?? ''
-  const [code, setCode] = useState(() => /^\d{6}$/.test(scannedCode) ? scannedCode : '')
+  const validScannedCode = /^\d{6}$/.test(scannedCode)
+  const [manualMode, setManualMode] = useState(!validScannedCode)
+  const [code, setCode] = useState(() => validScannedCode ? scannedCode : '')
   const [serviceId, setServiceId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -54,28 +56,39 @@ export function QrEntryPage() {
       <div className="flow-heading">
         <Link className="back-link" to="/"><ArrowLeft size={18} aria-hidden="true" /> Назад</Link>
         <p className="route-kicker"><span aria-hidden="true">03</span> В отделении</p>
-        <h1>{codeComplete ? 'Выберите услугу' : 'Войдите в очередь по коду'}</h1>
+        <h1>{validScannedCode && !manualMode ? 'Выберите услугу' : 'Получите талон в отделении'}</h1>
         <p>
-          {/^\d{6}$/.test(scannedCode)
-            ? 'Код отделения уже считан из QR. Проверьте адрес и выберите услугу.'
-            : 'Шесть цифр напечатаны рядом с QR-кодом в отделении. Камера и разрешения не нужны.'}
+          {validScannedCode && !manualMode
+            ? 'QR-код определил отделение. Выберите, зачем вы пришли — талон появится на этом устройстве.'
+            : 'Если камера не считала QR-код, введите шесть цифр с плаката рядом с ним.'}
         </p>
       </div>
 
       <div className="qr-layout">
-        <div className="qr-guide">
-          <div className="qr-guide-mark" aria-hidden="true"><QrCode /></div>
-          <p>Код в отделении</p>
-          <strong>Найдите 6 цифр рядом с QR-кодом</strong>
-          <ol>
-            <li><span>1</span>Введите код</li>
-            <li><span>2</span>Проверьте адрес</li>
-            <li><span>3</span>Выберите услугу</li>
-          </ol>
-        </div>
+        {validScannedCode && !manualMode ? (
+          <div className="qr-scan-result">
+            <div className="qr-scan-icon"><ScanLine size={38} aria-hidden="true" /><Check size={19} aria-hidden="true" /></div>
+            <p>QR-код считан</p>
+            {branchLookup.loading && <strong>Проверяем отделение…</strong>}
+            {branch && <><strong>{branch.name}</strong><span><MapPin size={17} />{branch.address}</span><small>Код {branch.postal_code}</small></>}
+            {branchLookup.error && <strong className="qr-scan-error">{branchLookup.error}</strong>}
+            <button className="text-button" type="button" onClick={() => { setManualMode(true); setCode(''); setServiceId('') }}>Ввести код вручную</button>
+          </div>
+        ) : (
+          <div className="qr-guide">
+            <div className="qr-guide-mark" aria-hidden="true"><QrCode /></div>
+            <p>Не получилось отсканировать</p>
+            <strong>Введите код с плаката</strong>
+            <ol>
+              <li><span>1</span>Введите 6 цифр</li>
+              <li><span>2</span>Проверьте адрес</li>
+              <li><span>3</span>Выберите услугу</li>
+            </ol>
+          </div>
+        )}
 
         <form className="qr-form" onSubmit={submit}>
-          <div className="form-field">
+          {manualMode && <div className="form-field">
             <label htmlFor="branch-code">Код отделения</label>
             <div className="code-input-wrap">
               <Keyboard size={20} aria-hidden="true" />
@@ -95,7 +108,9 @@ export function QrEntryPage() {
             {branchLookup.loading && <p className="field-message hint" role="status">Проверяем код…</p>}
             {codeComplete && branchLookup.error && <p className="field-message error" role="alert">{branchLookup.error}</p>}
             {branch && <p className="field-message success"><Check size={15} aria-hidden="true" /> {branch.address}</p>}
-          </div>
+          </div>}
+
+          {!manualMode && branch && <div className="qr-selected-branch"><Check size={16} /><span><small>Ваше отделение</small><strong>{branch.address}</strong></span></div>}
 
           <ServiceSelect
             services={services.data}
@@ -108,7 +123,7 @@ export function QrEntryPage() {
 
           {submitError && <p className="submit-error" role="alert">{submitError}</p>}
           <button className="button primary" type="submit" disabled={!branch || !selectedService || submitting}>
-            {submitting ? 'Создаём талон…' : 'Получить электронный талон'}
+            {submitting ? 'Выдаём талон…' : 'Получить талон'}
             <Check size={20} aria-hidden="true" />
           </button>
         </form>

@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import date
+from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
 import redis.asyncio as redis
@@ -18,8 +19,9 @@ from app.api.schemas import (
 )
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.core.priority import early_minutes
+from app.core.rate_limit import limit_ticket_write
 from app.db.session import get_connection
+from app.services.prebookings import create_prebooking
 from app.services.tickets import (
     activate_if_due,
     add_ticket_event,
@@ -33,7 +35,7 @@ from app.services.tickets import (
     ticket_response,
     token_hash,
 )
-from app.services.qr_codes import branch_join_url, branch_qr_svg
+from app.services.qr_codes import branch_join_url, branch_qr_svg, public_client_origin
 
 router = APIRouter(prefix="/api")
 
@@ -66,9 +68,32 @@ async def health() -> HealthResponse:
 
 
 @router.get("/branches", response_model=list[BranchResponse], tags=["Branches"])
-async def list_branches(connection: AsyncConnection = Depends(get_connection)) -> list[BranchResponse]:
+async def list_branches(
+    query: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=1_000_000),
+    connection: AsyncConnection = Depends(get_connection),
+) -> list[BranchResponse]:
+    search = query.strip() if query else None
     result = await connection.execute(
-        text("SELECT id, postal_code, name, address, timezone FROM branches WHERE active ORDER BY postal_code")
+        text(
+            """
+            SELECT id, postal_code, name, address, timezone
+            FROM branches
+            WHERE active
+              AND (CAST(:search AS text) IS NULL OR postal_code LIKE :prefix
+                   OR name ILIKE :pattern OR address ILIKE :pattern)
+            ORDER BY postal_code
+            LIMIT :limit OFFSET :offset
+            """
+        ),
+        {
+            "search": search,
+            "prefix": f"{search}%" if search else None,
+            "pattern": f"%{search}%" if search else None,
+            "limit": limit,
+            "offset": offset,
+        },
     )
     return [BranchResponse.model_validate(row._mapping) for row in result]
 
@@ -119,7 +144,9 @@ async def get_branch_by_code(
     tags=["Branches"],
 )
 async def get_branch_queue_qr_info(
-    branch_id: UUID, connection: AsyncConnection = Depends(get_connection)
+    branch_id: UUID,
+    public_origin: str | None = Query(default=None, max_length=240),
+    connection: AsyncConnection = Depends(get_connection),
 ) -> BranchQrResponse:
     postal_code = await connection.scalar(
         text("SELECT postal_code FROM branches WHERE id = :branch_id AND active"),
@@ -127,11 +154,16 @@ async def get_branch_queue_qr_info(
     )
     if postal_code is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, "branch_not_found", "Branch was not found")
+    try:
+        origin = public_client_origin(public_origin)
+    except ValueError as error:
+        raise ApiError(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid_public_origin", str(error)) from error
+    svg_query = f"?{urlencode({'public_origin': origin})}" if public_origin else ""
     return BranchQrResponse(
         branch_id=branch_id,
         postal_code=postal_code,
-        join_url=branch_join_url(postal_code),
-        qr_svg_path=f"/api/branches/{branch_id}/queue-qr.svg",
+        join_url=branch_join_url(postal_code, origin),
+        qr_svg_path=f"/api/branches/{branch_id}/queue-qr.svg{svg_query}",
     )
 
 
@@ -142,7 +174,9 @@ async def get_branch_queue_qr_info(
     tags=["Branches"],
 )
 async def get_branch_queue_qr(
-    branch_id: UUID, connection: AsyncConnection = Depends(get_connection)
+    branch_id: UUID,
+    public_origin: str | None = Query(default=None, max_length=240),
+    connection: AsyncConnection = Depends(get_connection),
 ) -> Response:
     postal_code = await connection.scalar(
         text("SELECT postal_code FROM branches WHERE id = :branch_id AND active"),
@@ -150,8 +184,12 @@ async def get_branch_queue_qr(
     )
     if postal_code is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, "branch_not_found", "Branch was not found")
+    try:
+        svg = branch_qr_svg(postal_code, public_origin)
+    except ValueError as error:
+        raise ApiError(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid_public_origin", str(error)) from error
     return Response(
-        content=branch_qr_svg(postal_code),
+        content=svg,
         media_type="image/svg+xml",
         headers={
             "Cache-Control": "public, max-age=3600",
@@ -191,14 +229,38 @@ async def list_appointment_slots(
     result = await connection.execute(
         text(
             """
-            SELECT slot.id, slot.starts_at, slot.ends_at, slot.capacity - slot.reserved AS available
-            FROM appointment_slots slot
-            JOIN branches b ON b.id = slot.branch_id
-            WHERE slot.branch_id = :branch_id AND slot.service_id = :service_id
-              AND (slot.starts_at AT TIME ZONE b.timezone)::date = :visit_date
-              AND slot.active AND slot.reserved < slot.capacity
-              AND slot.starts_at > clock_timestamp()
-            ORDER BY slot.starts_at
+            WITH inventory AS (
+                SELECT slot.id, slot.starts_at, slot.ends_at,
+                       LEAST(
+                           slot.capacity - slot.reserved,
+                           (SELECT count(DISTINCT ws.window_id)
+                            FROM window_services ws
+                            WHERE ws.branch_id = slot.branch_id
+                              AND ws.service_id = slot.service_id)
+                           - COALESCE((
+                               SELECT sum(same_service.reserved)
+                               FROM appointment_slots same_service
+                               WHERE same_service.branch_id = slot.branch_id
+                                 AND same_service.service_id = slot.service_id
+                                 AND same_service.starts_at = slot.starts_at
+                                 AND same_service.active
+                           ), 0),
+                           (SELECT count(*) FROM windows w WHERE w.branch_id = slot.branch_id)
+                           - COALESCE((
+                               SELECT sum(other.reserved) FROM appointment_slots other
+                               WHERE other.branch_id = slot.branch_id
+                                 AND other.starts_at = slot.starts_at AND other.active
+                           ), 0)
+                       )::int AS available
+                FROM appointment_slots slot
+                JOIN branches b ON b.id = slot.branch_id
+                WHERE slot.branch_id = :branch_id AND slot.service_id = :service_id
+                  AND (slot.starts_at AT TIME ZONE b.timezone)::date = :visit_date
+                  AND slot.active AND slot.starts_at > clock_timestamp()
+            )
+            SELECT id, starts_at, ends_at, available
+            FROM inventory WHERE available > 0
+            ORDER BY starts_at
             """
         ),
         {"branch_id": branch_id, "service_id": service_id, "visit_date": visit_date},
@@ -215,94 +277,10 @@ async def list_appointment_slots(
 async def create_booking(
     payload: BookingCreateRequest,
     idempotency_key: UUID = Header(alias="Idempotency-Key"),
+    _: None = Depends(limit_ticket_write),
     connection: AsyncConnection = Depends(get_connection),
 ) -> TicketResponse:
-    fingerprint = request_fingerprint(payload.model_dump(mode="json"))
-    raw_token = session_token(payload.branch_id, idempotency_key, "create_booking")
-    async with connection.begin():
-        replay = await idempotent_replay(
-            connection,
-            branch_id=payload.branch_id,
-            command="create_booking",
-            key=idempotency_key,
-            fingerprint=fingerprint,
-        )
-        if replay is not None:
-            return restore_replay_token(replay, raw_token)
-
-        result = await connection.execute(
-            text(
-                """
-                SELECT id, starts_at
-                FROM appointment_slots
-                WHERE id = :slot_id AND branch_id = :branch_id AND service_id = :service_id
-                  AND active AND starts_at > clock_timestamp()
-                FOR UPDATE
-                """
-            ),
-            payload.model_dump(),
-        )
-        slot = result.mappings().one_or_none()
-        if slot is None:
-            raise ApiError(status.HTTP_404_NOT_FOUND, "slot_not_found", "Appointment slot was not found")
-        capacity_available = await connection.scalar(
-            text("SELECT reserved < capacity FROM appointment_slots WHERE id = :slot_id"),
-            {"slot_id": payload.slot_id},
-        )
-        if not capacity_available:
-            raise ApiError(status.HTTP_409_CONFLICT, "slot_full", "Appointment slot is already full")
-
-        session_id, raw_token = await create_client_session(
-            connection, payload.branch_id, idempotency_key, "create_booking"
-        )
-        ticket_id = uuid4()
-        await connection.execute(
-            text(
-                """
-                INSERT INTO tickets
-                    (id, branch_id, service_id, source, status, slot_id, session_id,
-                     scheduled_time, eligible_at)
-                VALUES
-                    (:id, :branch_id, :service_id, 'prebooking', 'booked', :slot_id, :session_id,
-                     :starts_at, :eligible_at)
-                """
-            ),
-            {
-                "id": ticket_id,
-                "branch_id": payload.branch_id,
-                "service_id": payload.service_id,
-                "slot_id": payload.slot_id,
-                "session_id": session_id,
-                "starts_at": slot["starts_at"],
-                "eligible_at": slot["starts_at"] - timedelta(minutes=early_minutes()),
-            },
-        )
-        await connection.execute(
-            text("UPDATE appointment_slots SET reserved = reserved + 1 WHERE id = :slot_id"),
-            {"slot_id": payload.slot_id},
-        )
-        await add_ticket_event(
-            connection,
-            branch_id=payload.branch_id,
-            ticket_id=ticket_id,
-            version=1,
-            action="created",
-            old_status=None,
-            new_status="booked",
-            before_state=None,
-            after_state={"status": "booked", "source": "prebooking"},
-        )
-        response = await ticket_response(connection, ticket_id, raw_token, include_token=True)
-        await save_idempotent_response(
-            connection,
-            branch_id=payload.branch_id,
-            command="create_booking",
-            key=idempotency_key,
-            fingerprint=fingerprint,
-            response_status=status.HTTP_201_CREATED,
-            body=idempotency_body(response),
-        )
-        return response
+    return await create_prebooking(connection, payload, idempotency_key)
 
 
 @router.post(
@@ -314,6 +292,7 @@ async def create_booking(
 async def join_queue_by_code(
     payload: QrJoinRequest,
     idempotency_key: UUID = Header(alias="Idempotency-Key"),
+    _: None = Depends(limit_ticket_write),
     connection: AsyncConnection = Depends(get_connection),
 ) -> TicketResponse:
     fingerprint = request_fingerprint(payload.model_dump(mode="json"))

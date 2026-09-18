@@ -5,6 +5,16 @@ CREATE TABLE branches (
     address text NOT NULL, timezone text NOT NULL, active boolean NOT NULL DEFAULT true
 );
 CREATE UNIQUE INDEX uq_branches_postal_code ON branches(postal_code);
+CREATE TABLE branch_working_hours (
+    branch_id uuid NOT NULL REFERENCES branches(id),
+    weekday smallint NOT NULL CHECK (weekday BETWEEN 0 AND 6),
+    opens_at time, closes_at time, is_closed boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (branch_id, weekday),
+    CHECK (
+        (is_closed AND opens_at IS NULL AND closes_at IS NULL)
+        OR (NOT is_closed AND opens_at IS NOT NULL AND closes_at IS NOT NULL AND closes_at > opens_at)
+    )
+);
 CREATE TABLE services (
     id uuid PRIMARY KEY, name text NOT NULL, active boolean NOT NULL DEFAULT true
 );

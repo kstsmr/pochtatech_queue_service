@@ -18,7 +18,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ApiClientError, staffApi } from '../api/client'
 import type { StaffSession, StaffTicket, StaffWindow } from '../api/types'
 import { BranchSelect } from '../components/BranchSelect'
@@ -42,6 +42,7 @@ const statusLabels: Record<StaffTicket['status'], string> = {
 }
 
 export function StaffPage() {
+  const navigate = useNavigate()
   const branches = useBranches()
   const [session, setSession] = useState<StaffSession | null>(() => loadStaffSession())
   const [branchId, setBranchId] = useState('')
@@ -60,6 +61,7 @@ export function StaffPage() {
       saveStaffSession(created)
       setSession(created)
       setPin('')
+      if (created.role === 'manager') navigate('/manager', { replace: true })
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Не удалось открыть рабочее место')
     } finally {
@@ -72,18 +74,20 @@ export function StaffPage() {
       <main className="staff-login-page">
         <section className="staff-login-copy">
           <Link className="back-link" to="/"><ArrowLeft size={18} aria-hidden="true" /> Клиентский сервис</Link>
-          <p className="route-kicker"><span aria-hidden="true">РМ</span> Рабочее место</p>
-          <h1>Очередь под контролем</h1>
-          <p>Оператор работает только со своим окном. Все вызовы и изменения талонов сохраняются в журнале.</p>
+          <p className="route-kicker"><span aria-hidden="true">РМ</span> Вход для сотрудников</p>
+          <h1>Рабочее место отделения</h1>
+          <p>После входа откроется рабочее место оператора или панель руководителя — в соответствии с ролью сотрудника.</p>
         </section>
         <form className="staff-login-form" onSubmit={login}>
-          <div className="staff-login-mark"><UserRound size={24} aria-hidden="true" /><span>Смена оператора</span></div>
+          <div className="staff-login-mark"><UserRound size={24} aria-hidden="true" /><span>Учётная запись сотрудника</span></div>
           <BranchSelect
             branches={branches.data}
             value={branchId}
             loading={branches.loading}
             error={branches.error}
             onChange={setBranchId}
+            search={branches.search}
+            onSearch={branches.setSearch}
           />
           <label className="staff-field">
             <span>Код сотрудника</span>
@@ -95,12 +99,14 @@ export function StaffPage() {
           </label>
           {loginError && <p className="submit-error" role="alert">{loginError}</p>}
           <button className="button primary" type="submit" disabled={!branchId || loginBusy}>
-            {loginBusy ? 'Проверяем…' : 'Начать смену'} <DoorOpen size={19} aria-hidden="true" />
+            {loginBusy ? 'Проверяем…' : 'Войти'} <DoorOpen size={19} aria-hidden="true" />
           </button>
         </form>
       </main>
     )
   }
+
+  if (session.role === 'manager') return <Navigate to="/manager" replace />
 
   async function logout(token: string) {
     try {

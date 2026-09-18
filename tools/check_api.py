@@ -28,6 +28,14 @@ def request_bytes(path: str):
         return response.status, response.headers.get_content_type(), response.read()
 
 
+def attempt_request(path: str, *, method: str, body: dict, headers: dict):
+    try:
+        return request(path, method=method, body=body, headers=headers)
+    except HTTPError as error:
+        payload = json.loads(error.read().decode())
+        return error.code, payload
+
+
 def assert_equal(actual, expected, message: str):
     if actual != expected:
         raise AssertionError(f"{message}: expected {expected!r}, got {actual!r}")
@@ -106,6 +114,63 @@ def main() -> None:
         headers=concurrent_cancel_headers,
     )
 
+    capacity_branch = branches[-1]
+    _, capacity_services = request(f"/api/branches/{capacity_branch['id']}/services")
+    capacity_choice = None
+    for offset in range(50, 61):
+        capacity_date = date.today() + timedelta(days=offset)
+        for candidate_service in capacity_services:
+            capacity_query = urlencode({
+                "service_id": candidate_service["id"],
+                "date": capacity_date.isoformat(),
+            })
+            _, candidate_slots = request(
+                f"/api/branches/{capacity_branch['id']}/slots?{capacity_query}"
+            )
+            if candidate_slots:
+                capacity_choice = (candidate_service["id"], candidate_slots[0])
+                break
+        if capacity_choice is not None:
+            break
+    if capacity_choice is None:
+        raise AssertionError("no slot found for service capacity test")
+    service_id, capacity_slot = capacity_choice
+    available = capacity_slot["available"]
+    capacity_bodies = [
+        {
+            "branch_id": capacity_branch["id"],
+            "service_id": service_id,
+            "slot_id": capacity_slot["id"],
+        }
+        for _ in range(available + 1)
+    ]
+    created = []
+    try:
+        with ThreadPoolExecutor(max_workers=len(capacity_bodies)) as executor:
+            capacity_results = list(executor.map(
+                lambda body: attempt_request(
+                    "/api/bookings",
+                    method="POST",
+                    body=body,
+                    headers={"Idempotency-Key": str(uuid4())},
+                ),
+                capacity_bodies,
+            ))
+        created = [body for status_code, body in capacity_results if status_code == 201]
+        conflicts = [body for status_code, body in capacity_results if status_code == 409]
+        assert_equal(len(created), available, "service appointment capacity")
+        assert_equal(len(conflicts), 1, "service capacity conflict")
+    finally:
+        for ticket in created:
+            request(
+                f"/api/tickets/{ticket['id']}/cancel",
+                method="POST",
+                headers={
+                    "X-Session-Token": ticket["session_token"],
+                    "Idempotency-Key": str(uuid4()),
+                },
+            )
+
     try:
         request(f"/api/tickets/{booking['id']}", headers={"X-Session-Token": "x" * 32})
     except HTTPError as error:
@@ -113,7 +178,7 @@ def main() -> None:
     else:
         raise AssertionError("invalid token unexpectedly restored a ticket")
 
-    print("API smoke test passed: health, catalog, QR image, slots, booking, QR join, restore, concurrent idempotency, cancellation")
+    print("API smoke test passed: health, catalog, QR image, expanded slots, atomic service capacity, booking, QR join, restore, concurrent idempotency, cancellation")
 
 
 if __name__ == "__main__":

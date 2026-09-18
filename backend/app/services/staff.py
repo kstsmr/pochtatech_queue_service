@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.api.schemas import StaffTicketResponse, StaffWindowResponse
 from app.core.errors import ApiError
-from app.core.priority import priority_parameters, priority_sql, validate_priority_config
+from app.core.priority import bind_priority_sql, priority_parameters, validate_priority_config
 from app.services.tickets import add_ticket_event
 
 
@@ -264,22 +264,51 @@ async def list_queue(connection: AsyncConnection, identity: StaffIdentity) -> li
             "priority_rule_invalid",
             "Active queue priority rule is invalid",
         ) from error
-    priority_case = priority_sql("t")
     rows = (
         await connection.execute(
             text(
-                f"""
+                bind_priority_sql(
+                    """
                 SELECT t.id
                 FROM tickets t
-                WHERE t.branch_id = :branch_id AND t.status IN ('booked', 'waiting', 'called', 'serving')
+                WHERE t.branch_id = :branch_id
+                  AND (
+                    t.status IN ('waiting', 'called', 'serving')
+                    OR (t.status = 'booked' AND t.eligible_at <= clock_timestamp())
+                  )
                 ORDER BY
                     CASE t.status WHEN 'serving' THEN 0 WHEN 'called' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END,
-                    CASE WHEN t.status = 'waiting' THEN {priority_case} ELSE 0 END,
+                    CASE WHEN t.status = 'waiting' THEN /* PRIORITY_EXPRESSION */ ELSE 0 END,
                     t.eligible_at, t.queue_sequence, t.id
+                LIMIT 200
+                """,
+                    "t",
+                )
+            ),
+            {"branch_id": identity.branch_id, **priority_parameters(config)},
+        )
+    ).scalars().all()
+    return [await staff_ticket_response(connection, ticket_id) for ticket_id in rows]
+
+
+async def list_unfinished_tickets(
+    connection: AsyncConnection, identity: StaffIdentity
+) -> list[StaffTicketResponse]:
+    rows = (
+        await connection.execute(
+            text(
+                """
+                SELECT id FROM tickets
+                WHERE branch_id = :branch_id
+                  AND status IN ('booked', 'waiting', 'called', 'serving')
+                ORDER BY
+                  CASE status WHEN 'serving' THEN 0 WHEN 'called' THEN 1
+                              WHEN 'waiting' THEN 2 ELSE 3 END,
+                  eligible_at, queue_sequence, id
                 LIMIT 200
                 """
             ),
-            {"branch_id": identity.branch_id, **priority_parameters(config)},
+            {"branch_id": identity.branch_id},
         )
     ).scalars().all()
     return [await staff_ticket_response(connection, ticket_id) for ticket_id in rows]
@@ -525,11 +554,11 @@ async def call_next_ticket(
             "priority_rule_invalid",
             "Active queue priority rule is invalid",
         ) from error
-    priority_case = priority_sql("t")
     ticket = (
         await connection.execute(
             text(
-                f"""
+                bind_priority_sql(
+                    """
                 SELECT t.id, t.version
                 FROM tickets t
                 JOIN window_services ws ON ws.branch_id = t.branch_id
@@ -537,11 +566,13 @@ async def call_next_ticket(
                 WHERE t.branch_id = :branch_id AND t.status = 'waiting'
                   AND (t.target_window_id IS NULL OR t.target_window_id = :window_id)
                 ORDER BY
-                  {priority_case},
+                  /* PRIORITY_EXPRESSION */,
                   t.eligible_at, t.queue_sequence, t.id
                 FOR UPDATE OF t SKIP LOCKED
                 LIMIT 1
-                """
+                """,
+                    "t",
+                )
             ),
             {
                 "window_id": window_id,

@@ -1,7 +1,7 @@
-import { CalendarDays, Clock3, MapPin, RotateCw, Ticket as TicketIcon, Trash2 } from 'lucide-react'
+import { Bell, CalendarDays, Clock3, MapPin, RotateCw, Ticket as TicketIcon, Trash2, Wifi, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { queueApi } from '../api/client'
+import { queueApi, ticketSocketUrl } from '../api/client'
 import type { Ticket } from '../api/types'
 import { clearTicketSession, loadTicketSession } from '../lib/ticketSession'
 
@@ -28,6 +28,8 @@ export function TicketPage() {
   const [loading, setLoading] = useState(Boolean(session))
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [liveState, setLiveState] = useState<'connecting' | 'live' | 'fallback'>('connecting')
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => 'Notification' in window ? Notification.permission : 'unsupported')
   const justSaved = Boolean((location.state as { justSaved?: boolean } | null)?.justSaved)
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -61,6 +63,79 @@ export function TicketPage() {
       })
     return () => controller.abort()
   }, [session])
+
+  useEffect(() => {
+    if (!session) return
+    let stopped = false
+    let socket: WebSocket | null = null
+    let reconnectTimer: number | null = null
+    let pollingTimer: number | null = null
+
+    const stopPolling = () => {
+      if (pollingTimer !== null) window.clearInterval(pollingTimer)
+      pollingTimer = null
+    }
+    const startPolling = () => {
+      if (pollingTimer !== null) return
+      setLiveState('fallback')
+      void refresh()
+      pollingTimer = window.setInterval(() => void refresh(), 5000)
+    }
+    const connect = () => {
+      if (stopped) return
+      setLiveState('connecting')
+      let completed = false
+      socket = new WebSocket(ticketSocketUrl(session.ticketId))
+      socket.onopen = () => {
+        stopPolling()
+        setLiveState('live')
+        socket?.send(JSON.stringify({ session_token: session.sessionToken }))
+      }
+      socket.onmessage = (event) => {
+        const message = JSON.parse(event.data) as { type?: string; ticket?: Ticket }
+        if (message.type !== 'ticket' || !message.ticket) return
+        setTicket(message.ticket)
+        setLoading(false)
+        setError(null)
+        completed = ['served', 'no_show', 'cancelled'].includes(message.ticket.status)
+      }
+      socket.onerror = () => socket?.close()
+      socket.onclose = () => {
+        if (stopped || completed) return
+        startPolling()
+        reconnectTimer = window.setTimeout(connect, 5000)
+      }
+    }
+
+    const initial = window.setTimeout(connect, 0)
+    return () => {
+      stopped = true
+      window.clearTimeout(initial)
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer)
+      stopPolling()
+      socket?.close()
+    }
+  }, [refresh, session])
+
+  useEffect(() => {
+    if (!ticket || notificationPermission !== 'granted') return
+    const near = ticket.status === 'waiting' && ticket.position !== null && ticket.position <= 2
+    const called = ticket.status === 'called' && ticket.window_number !== null
+    if (!near && !called) return
+    const notificationKey = `${ticket.id}:${ticket.status}:${ticket.position}:${ticket.window_number}`
+    const storageKey = `digital-queue.notification.${ticket.id}`
+    if (localStorage.getItem(storageKey) === notificationKey) return
+    const title = called ? `Подойдите к окну № ${ticket.window_number}` : 'Скоро ваша очередь'
+    const body = called ? `Талон О / ${String(ticket.ticket_number).padStart(3, '0')}` : 'Перед вами не больше одного клиента.'
+    new Notification(title, { body, tag: ticket.id })
+    navigator.vibrate?.(called ? [250, 120, 250] : 180)
+    localStorage.setItem(storageKey, notificationKey)
+  }, [notificationPermission, ticket])
+
+  async function enableNotifications() {
+    if (!('Notification' in window)) return
+    setNotificationPermission(await Notification.requestPermission())
+  }
 
   async function cancelTicket() {
     if (!session || !ticket || cancelling) return
@@ -121,14 +196,16 @@ export function TicketPage() {
   if (!ticket) return null
 
   const scheduled = ticket.scheduled_time
-    ? new Date(ticket.scheduled_time).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
+    ? new Date(ticket.scheduled_time).toLocaleString('ru-RU', {
+        dateStyle: 'short', timeStyle: 'short', timeZone: ticket.branch_timezone,
+      })
     : null
   const canCancel = ticket.status === 'booked' || ticket.status === 'waiting'
 
   return (
     <section className="ticket-page">
       <div className="ticket-heading">
-        <p className="route-kicker">Мой визит</p>
+        <div className="ticket-live-row"><p className="route-kicker">Мой визит</p><span className={`ticket-live ${liveState}`}>{liveState === 'live' ? <Wifi size={14} /> : <WifiOff size={14} />}{liveState === 'live' ? 'Статус обновляется' : liveState === 'fallback' ? 'Резервное обновление' : 'Подключаемся'}</span></div>
         <h1>{justSaved ? 'Талон создан' : statusLabels[ticket.status]}</h1>
         <p>
           {ticket.status === 'called' && ticket.window_number
@@ -139,7 +216,7 @@ export function TicketPage() {
         </p>
       </div>
 
-      <article className="ticket-sheet">
+      <article className={`ticket-sheet ${ticket.status === 'called' ? 'called' : ''}`}>
         <header>
           <span className={`ticket-status status-${ticket.status}`}>{statusLabels[ticket.status]}</span>
           <span className="ticket-mark">О / {String(ticket.ticket_number).padStart(3, '0')}</span>
@@ -158,11 +235,14 @@ export function TicketPage() {
         <div className="ticket-perforation" aria-hidden="true" />
         <footer>
           <span>{sourceLabels[ticket.source]}</span>
-          <span>{new Date(ticket.created_at).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</span>
+          <span>{new Date(ticket.created_at).toLocaleString('ru-RU', {
+            dateStyle: 'short', timeStyle: 'short', timeZone: ticket.branch_timezone,
+          })}</span>
         </footer>
       </article>
 
       {error && <p className="submit-error centered" role="alert">{error}</p>}
+      {notificationPermission === 'default' && canCancel && <button className="notification-offer" type="button" onClick={() => void enableNotifications()}><Bell size={18} /><span><strong>Сообщить, когда подойдёт очередь</strong><small>Разрешить уведомление на этом устройстве</small></span></button>}
       <div className="ticket-actions">
         <button className="button secondary inline-button" type="button" onClick={() => void refresh()} disabled={loading}>
           <RotateCw size={18} aria-hidden="true" /> Обновить

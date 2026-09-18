@@ -2,6 +2,10 @@ import type {
   AppointmentSlot,
   Branch,
   BranchQr,
+  ManagerDashboard,
+  ManagerPriority,
+  ManagerPriorityUpdate,
+  ManagerService,
   Service,
   StaffIdentity,
   StaffIncident,
@@ -17,6 +21,13 @@ export function apiAssetUrl(path: string): string {
   return `${API_URL}${path}`
 }
 
+export function ticketSocketUrl(ticketId: string): string {
+  const base = API_URL || window.location.origin
+  const url = new URL(`/api/ws/tickets/${encodeURIComponent(ticketId)}`, base)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}
+
 export class ApiClientError extends Error {
   readonly status: number | undefined
 
@@ -28,7 +39,7 @@ export class ApiClientError extends Error {
 }
 
 type RequestOptions = {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   headers?: Record<string, string>
   signal?: AbortSignal
@@ -65,11 +76,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const queueApi = {
-  getBranches: (signal?: AbortSignal) => request<Branch[]>('/api/branches', { signal }),
+  getBranches: (search = '', signal?: AbortSignal) => {
+    const query = new URLSearchParams({ limit: '100' })
+    if (search.trim()) query.set('query', search.trim())
+    return request<Branch[]>(`/api/branches?${query}`, { signal })
+  },
   getBranchByCode: (code: string, signal?: AbortSignal) =>
     request<Branch>(`/api/branches/code/${encodeURIComponent(code)}`, { signal }),
-  getBranchQr: (branchId: string, signal?: AbortSignal) =>
-    request<BranchQr>(`/api/branches/${encodeURIComponent(branchId)}/queue-qr`, { signal }),
+  getBranchQr: (branchId: string, publicOrigin: string, signal?: AbortSignal) => {
+    const query = new URLSearchParams({ public_origin: publicOrigin })
+    return request<BranchQr>(`/api/branches/${encodeURIComponent(branchId)}/queue-qr?${query}`, { signal })
+  },
   getServices: (branchId: string, signal?: AbortSignal) =>
     request<Service[]>(`/api/branches/${encodeURIComponent(branchId)}/services`, { signal }),
   getSlots: (branchId: string, serviceId: string, date: string, signal?: AbortSignal) => {
@@ -175,4 +192,33 @@ export const staffApi = {
     headers: staffHeaders(token),
     body: { category, description, window_id: windowId, ticket_id: ticketId },
   }),
+}
+
+export const managerApi = {
+  getDashboard: (token: string, signal?: AbortSignal) =>
+    request<ManagerDashboard>('/api/manager/dashboard', {
+      headers: staffHeaders(token), signal,
+    }),
+  updateService: (token: string, serviceId: string, active: boolean, averageServiceSeconds: number) =>
+    request<ManagerService>(`/api/manager/services/${encodeURIComponent(serviceId)}`, {
+      method: 'PUT',
+      headers: staffHeaders(token),
+      body: { active, average_service_seconds: averageServiceSeconds },
+    }),
+  updateWindowServices: (token: string, windowId: string, serviceIds: string[]) =>
+    request<StaffWindow>(`/api/manager/windows/${encodeURIComponent(windowId)}/services`, {
+      method: 'PUT', headers: staffHeaders(token), body: { service_ids: serviceIds },
+    }),
+  closeWindow: (token: string, windowId: string) =>
+    request<StaffWindow>(`/api/manager/windows/${encodeURIComponent(windowId)}/close`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
+  updatePriority: (token: string, payload: ManagerPriorityUpdate) =>
+    request<ManagerPriority>('/api/manager/priority', {
+      method: 'PUT', headers: staffHeaders(token), body: payload,
+    }),
+  resolveIncident: (token: string, incidentId: string) =>
+    request<{ success: boolean }>(`/api/manager/incidents/${encodeURIComponent(incidentId)}/resolve`, {
+      method: 'POST', headers: staffHeaders(token),
+    }),
 }

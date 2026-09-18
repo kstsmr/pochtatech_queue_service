@@ -78,6 +78,13 @@ def priority_sql(alias: str = "t") -> str:
     """
 
 
+def bind_priority_sql(template: str, alias: str) -> str:
+    marker = "/* PRIORITY_EXPRESSION */"
+    if template.count(marker) != 1:
+        raise ValueError("priority SQL template must contain exactly one marker")
+    return template.replace(marker, priority_sql(alias))
+
+
 def priority_parameters(config: Mapping[str, Any]) -> dict[str, int]:
     levels = config["levels"]
     waits = config["max_wait_minutes"]

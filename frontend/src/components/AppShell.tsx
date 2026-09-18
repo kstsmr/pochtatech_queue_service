@@ -1,4 +1,5 @@
-import { CalendarDays, Home, QrCode, Ticket, UserRound } from 'lucide-react'
+import { Accessibility, CalendarDays, Home, QrCode, Ticket, UserRound } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 const navItems = [
@@ -10,6 +11,12 @@ const navItems = [
 
 export function AppShell() {
   const location = useLocation()
+  const [accessible, setAccessible] = useState(() => localStorage.getItem('digital-queue.accessible') === 'true')
+
+  useEffect(() => {
+    document.documentElement.dataset.accessible = String(accessible)
+    localStorage.setItem('digital-queue.accessible', String(accessible))
+  }, [accessible])
 
   return (
     <div className="site-shell">
@@ -29,10 +36,23 @@ export function AppShell() {
           ))}
         </nav>
 
-        <NavLink className="staff-button" to="/staff">
-          <UserRound size={18} aria-hidden="true" />
-          <span>Сотрудникам</span>
-        </NavLink>
+        <div className="header-actions">
+          <button
+            className="accessibility-button"
+            type="button"
+            aria-pressed={accessible}
+            aria-label={accessible ? 'Выключить крупный текст' : 'Включить крупный текст'}
+            title={accessible ? 'Выключить крупный текст' : 'Включить крупный текст'}
+            onClick={() => setAccessible((value) => !value)}
+          >
+            <Accessibility size={18} aria-hidden="true" />
+            <span>Крупный текст</span>
+          </button>
+          <NavLink className="staff-button" to="/staff">
+            <UserRound size={18} aria-hidden="true" />
+            <span>Сотрудникам</span>
+          </NavLink>
+        </div>
       </header>
 
       <main id="content" className="page-frame" key={location.pathname}>

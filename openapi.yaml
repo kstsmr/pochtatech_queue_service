@@ -22,16 +22,50 @@ paths:
       - Branches
       summary: List Branches
       operationId: list_branches_api_branches_get
+      parameters:
+      - name: query
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Query
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000000
+          minimum: 0
+          default: 0
+          title: Offset
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/BranchResponse'
-                type: array
                 title: Response List Branches Api Branches Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/branches/{branch_id}/services:
     get:
       tags:
@@ -103,6 +137,15 @@ paths:
           type: string
           format: uuid
           title: Branch Id
+      - name: public_origin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 240
+          - type: 'null'
+          title: Public Origin
       responses:
         '200':
           description: Successful Response
@@ -130,6 +173,15 @@ paths:
           type: string
           format: uuid
           title: Branch Id
+      - name: public_origin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 240
+          - type: 'null'
+          title: Public Origin
       responses:
         '200':
           description: Successful Response
@@ -321,6 +373,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/integrations/demo-mobile/prebookings:
+    post:
+      tags:
+      - Integrations
+      summary: Synchronize a prebooking from the demo mobile application
+      operationId: sync_demo_mobile_prebooking_api_integrations_demo_mobile_prebookings_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DemoMobilePrebookingRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /api/integrations/demo-notifications/{ticket_id}:
+    get:
+      tags:
+      - Integrations
+      summary: Inspect demo notification deliveries for a ticket
+      operationId: list_demo_notification_deliveries_api_integrations_demo_notifications__ticket_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ticket Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationDeliveryResponse'
+                title: Response List Demo Notification Deliveries Api Integrations
+                  Demo Notifications  Ticket Id  Get
         '422':
           description: Validation Error
           content:
@@ -872,6 +984,220 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/manager/dashboard:
+    get:
+      tags:
+      - Manager
+      summary: Get Manager Dashboard
+      operationId: get_manager_dashboard_api_manager_dashboard_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerDashboardResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/manager/services/{service_id}:
+    put:
+      tags:
+      - Manager
+      summary: Put Manager Service
+      operationId: put_manager_service_api_manager_services__service_id__put
+      parameters:
+      - name: service_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Service Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerServiceUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerServiceResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/manager/windows/{window_id}/services:
+    put:
+      tags:
+      - Manager
+      summary: Put Manager Window Services
+      operationId: put_manager_window_services_api_manager_windows__window_id__services_put
+      parameters:
+      - name: window_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Window Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerWindowServicesRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffWindowResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/manager/windows/{window_id}/close:
+    post:
+      tags:
+      - Manager
+      summary: Post Manager Close Window
+      operationId: post_manager_close_window_api_manager_windows__window_id__close_post
+      parameters:
+      - name: window_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Window Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffWindowResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/manager/priority:
+    put:
+      tags:
+      - Manager
+      summary: Put Manager Priority
+      operationId: put_manager_priority_api_manager_priority_put
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerPriorityUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerPriorityResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/manager/incidents/{incident_id}/resolve:
+    post:
+      tags:
+      - Manager
+      summary: Post Resolve Incident
+      operationId: post_resolve_incident_api_manager_incidents__incident_id__resolve_post
+      parameters:
+      - name: incident_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Incident Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerActionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AppointmentSlotResponse:
@@ -968,6 +1294,34 @@ components:
       - address
       - timezone
       title: BranchResponse
+    DemoMobilePrebookingRequest:
+      properties:
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        service_id:
+          type: string
+          format: uuid
+          title: Service Id
+        slot_id:
+          type: string
+          format: uuid
+          title: Slot Id
+        external_booking_id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._:-]+$
+          title: External Booking Id
+      additionalProperties: false
+      type: object
+      required:
+      - branch_id
+      - service_id
+      - slot_id
+      - external_booking_id
+      title: DemoMobilePrebookingRequest
     HTTPValidationError:
       properties:
         detail:
@@ -1059,6 +1413,396 @@ components:
       - description
       - created_at
       title: IncidentResponse
+    ManagerActionResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+      type: object
+      required:
+      - success
+      title: ManagerActionResponse
+    ManagerDashboardResponse:
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+        metrics:
+          $ref: '#/components/schemas/ManagerMetricsResponse'
+        recommendation:
+          $ref: '#/components/schemas/ManagerRecommendationResponse'
+        windows:
+          items:
+            $ref: '#/components/schemas/StaffWindowResponse'
+          type: array
+          title: Windows
+        queue:
+          items:
+            $ref: '#/components/schemas/StaffTicketResponse'
+          type: array
+          title: Queue
+        services:
+          items:
+            $ref: '#/components/schemas/ManagerServiceResponse'
+          type: array
+          title: Services
+        incidents:
+          items:
+            $ref: '#/components/schemas/ManagerIncidentResponse'
+          type: array
+          title: Incidents
+        deviations:
+          items:
+            $ref: '#/components/schemas/ManagerDeviationResponse'
+          type: array
+          title: Deviations
+        unfinished_tickets:
+          items:
+            $ref: '#/components/schemas/StaffTicketResponse'
+          type: array
+          title: Unfinished Tickets
+        priority_rule:
+          $ref: '#/components/schemas/ManagerPriorityResponse'
+      type: object
+      required:
+      - generated_at
+      - metrics
+      - recommendation
+      - windows
+      - queue
+      - services
+      - incidents
+      - deviations
+      - unfinished_tickets
+      - priority_rule
+      title: ManagerDashboardResponse
+    ManagerDeviationResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        kind:
+          type: string
+          enum:
+          - wait_limit
+          - stale_call
+          - long_service
+          - unresolved_incident
+          title: Kind
+        label:
+          type: string
+          title: Label
+        detail:
+          type: string
+          title: Detail
+        occurred_at:
+          type: string
+          format: date-time
+          title: Occurred At
+      type: object
+      required:
+      - id
+      - kind
+      - label
+      - detail
+      - occurred_at
+      title: ManagerDeviationResponse
+    ManagerIncidentResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        category:
+          type: string
+          enum:
+          - technical
+          - operational
+          title: Category
+        description:
+          type: string
+          title: Description
+        actor_id:
+          type: string
+          title: Actor Id
+        window_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Window Number
+        ticket_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Ticket Number
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - category
+      - description
+      - actor_id
+      - window_number
+      - ticket_number
+      - created_at
+      title: ManagerIncidentResponse
+    ManagerMetricsResponse:
+      properties:
+        waiting_count:
+          type: integer
+          title: Waiting Count
+        average_wait_minutes:
+          type: number
+          title: Average Wait Minutes
+        maximum_wait_minutes:
+          type: integer
+          title: Maximum Wait Minutes
+        served_today:
+          type: integer
+          title: Served Today
+        open_windows:
+          type: integer
+          title: Open Windows
+        total_windows:
+          type: integer
+          title: Total Windows
+        window_load_percent:
+          type: number
+          title: Window Load Percent
+        unresolved_incidents:
+          type: integer
+          title: Unresolved Incidents
+        unfinished_tickets:
+          type: integer
+          title: Unfinished Tickets
+      type: object
+      required:
+      - waiting_count
+      - average_wait_minutes
+      - maximum_wait_minutes
+      - served_today
+      - open_windows
+      - total_windows
+      - window_load_percent
+      - unresolved_incidents
+      - unfinished_tickets
+      title: ManagerMetricsResponse
+    ManagerPriorityResponse:
+      properties:
+        version:
+          type: integer
+          title: Version
+        config:
+          additionalProperties: true
+          type: object
+          title: Config
+        actor_id:
+          type: string
+          title: Actor Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - version
+      - config
+      - actor_id
+      - created_at
+      title: ManagerPriorityResponse
+    ManagerPriorityUpdateRequest:
+      properties:
+        early_minutes:
+          type: integer
+          maximum: 120.0
+          minimum: 0.0
+          title: Early Minutes
+        grace_minutes:
+          type: integer
+          maximum: 120.0
+          minimum: 0.0
+          title: Grace Minutes
+        prebooking_max_wait_minutes:
+          type: integer
+          maximum: 240.0
+          minimum: 1.0
+          title: Prebooking Max Wait Minutes
+        qr_max_wait_minutes:
+          type: integer
+          maximum: 240.0
+          minimum: 1.0
+          title: Qr Max Wait Minutes
+        walk_in_max_wait_minutes:
+          type: integer
+          maximum: 240.0
+          minimum: 1.0
+          title: Walk In Max Wait Minutes
+        appointment_level:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Appointment Level
+        qr_level:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Qr Level
+        walk_in_level:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Walk In Level
+        late_prebooking_level:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Late Prebooking Level
+      additionalProperties: false
+      type: object
+      required:
+      - early_minutes
+      - grace_minutes
+      - prebooking_max_wait_minutes
+      - qr_max_wait_minutes
+      - walk_in_max_wait_minutes
+      - appointment_level
+      - qr_level
+      - walk_in_level
+      - late_prebooking_level
+      title: ManagerPriorityUpdateRequest
+    ManagerRecommendationResponse:
+      properties:
+        level:
+          type: string
+          enum:
+          - normal
+          - attention
+          - critical
+          title: Level
+        title:
+          type: string
+          title: Title
+        detail:
+          type: string
+          title: Detail
+        suggested_windows:
+          type: integer
+          minimum: 0.0
+          title: Suggested Windows
+      type: object
+      required:
+      - level
+      - title
+      - detail
+      - suggested_windows
+      title: ManagerRecommendationResponse
+    ManagerServiceResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        active:
+          type: boolean
+          title: Active
+        average_service_seconds:
+          type: integer
+          title: Average Service Seconds
+      type: object
+      required:
+      - id
+      - name
+      - active
+      - average_service_seconds
+      title: ManagerServiceResponse
+    ManagerServiceUpdateRequest:
+      properties:
+        active:
+          type: boolean
+          title: Active
+        average_service_seconds:
+          type: integer
+          maximum: 7200.0
+          minimum: 60.0
+          title: Average Service Seconds
+      additionalProperties: false
+      type: object
+      required:
+      - active
+      - average_service_seconds
+      title: ManagerServiceUpdateRequest
+    ManagerWindowServicesRequest:
+      properties:
+        service_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          minItems: 1
+          title: Service Ids
+      additionalProperties: false
+      type: object
+      required:
+      - service_ids
+      title: ManagerWindowServicesRequest
+    NotificationDeliveryResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        ticket_id:
+          type: string
+          format: uuid
+          title: Ticket Id
+        channel:
+          type: string
+          title: Channel
+        status:
+          type: string
+          enum:
+          - pending
+          - processing
+          - retry
+          - sent
+          - failed
+          title: Status
+        attempts:
+          type: integer
+          title: Attempts
+        next_attempt_at:
+          type: string
+          format: date-time
+          title: Next Attempt At
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+        delivered_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Delivered At
+      type: object
+      required:
+      - id
+      - ticket_id
+      - channel
+      - status
+      - attempts
+      - next_attempt_at
+      - last_error
+      - delivered_at
+      title: NotificationDeliveryResponse
     QrJoinRequest:
       properties:
         branch_code:
@@ -1416,6 +2160,9 @@ components:
         branch_address:
           type: string
           title: Branch Address
+        branch_timezone:
+          type: string
+          title: Branch Timezone
         service_name:
           type: string
           title: Service Name
@@ -1440,6 +2187,7 @@ components:
       - estimated_wait_minutes
       - branch_name
       - branch_address
+      - branch_timezone
       - service_name
       title: TicketResponse
     ValidationError:
@@ -1457,6 +2205,11 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
       - loc
@@ -1488,3 +2241,8 @@ components:
       required:
       - service_ids
       title: WindowOpenRequest
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-Integration-Key

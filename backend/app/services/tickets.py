@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import math
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -13,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.api.schemas import TicketResponse
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.core.priority import priority_parameters, priority_sql, validate_priority_config
+from app.core.priority import bind_priority_sql, priority_parameters, validate_priority_config
+from app.services.notifications import enqueue_ticket_notification
 
 
 def request_fingerprint(payload: dict[str, Any]) -> str:
@@ -95,7 +97,12 @@ async def save_idempotent_response(
 
 
 async def create_client_session(
-    connection: AsyncConnection, branch_id: UUID, idempotency_key: UUID, command: str
+    connection: AsyncConnection,
+    branch_id: UUID,
+    idempotency_key: UUID,
+    command: str,
+    *,
+    expires_at: datetime | None = None,
 ) -> tuple[UUID, str]:
     raw_token = session_token(branch_id, idempotency_key, command)
     session_id = uuid4()
@@ -103,10 +110,17 @@ async def create_client_session(
         text(
             """
             INSERT INTO client_sessions (id, token_hash, expires_at)
-            VALUES (:id, :token_hash, clock_timestamp() + interval '7 days')
+            VALUES (
+                :id,
+                :token_hash,
+                GREATEST(
+                    clock_timestamp() + interval '7 days',
+                    COALESCE(CAST(:expires_at AS timestamptz), clock_timestamp())
+                )
+            )
             """
         ),
-        {"id": session_id, "token_hash": token_hash(raw_token)},
+        {"id": session_id, "token_hash": token_hash(raw_token), "expires_at": expires_at},
     )
     return session_id, raw_token
 
@@ -126,7 +140,8 @@ async def add_ticket_event(
     actor_role: str = "client",
     reason: str | None = None,
     rule_version: int | None = None,
-) -> None:
+) -> UUID:
+    event_id = uuid4()
     await connection.execute(
         text(
             """
@@ -140,7 +155,7 @@ async def add_ticket_event(
             """
         ),
         {
-            "id": uuid4(),
+            "id": event_id,
             "branch_id": branch_id,
             "ticket_id": ticket_id,
             "version": version,
@@ -155,6 +170,18 @@ async def add_ticket_event(
             "rule_version": rule_version,
         },
     )
+    if action in {"created", "called", "recalled"}:
+        kind = "ticket_created" if action == "created" else "window_called"
+        channel = "demo_status" if action == "created" else "demo_call"
+        await enqueue_ticket_notification(
+            connection,
+            branch_id=branch_id,
+            event_id=event_id,
+            ticket_id=ticket_id,
+            channel=channel,
+            kind=kind,
+        )
+    return event_id
 
 
 async def activate_if_due(connection: AsyncConnection, ticket_id: UUID) -> None:
@@ -197,6 +224,7 @@ async def ticket_response(
             SELECT t.id, t.branch_id, t.service_id, t.ticket_number, t.source, t.status,
                    t.scheduled_time, t.eligible_at, t.created_at, t.updated_at, t.queue_sequence,
                    w.number AS window_number, b.name AS branch_name, b.address AS branch_address,
+                   b.timezone AS branch_timezone,
                    s.name AS service_name, bs.average_service_seconds
             FROM tickets t
             JOIN client_sessions cs ON cs.id = t.session_id
@@ -245,14 +273,14 @@ async def ticket_response(
                 "priority_rule_invalid",
                 "Active queue priority rule is invalid",
             ) from error
-        priority_case = priority_sql("candidate")
         position = int(
             await connection.scalar(
                 text(
-                    f"""
+                    bind_priority_sql(
+                        """
                     WITH ranked AS (
                         SELECT candidate.id, candidate.eligible_at, candidate.queue_sequence,
-                               {priority_case} AS priority_level
+                               /* PRIORITY_EXPRESSION */ AS priority_level
                         FROM tickets candidate
                         WHERE candidate.branch_id = :branch_id
                           AND candidate.service_id = :service_id
@@ -265,7 +293,9 @@ async def ticket_response(
                     WHERE (ranked.priority_level, ranked.eligible_at, ranked.queue_sequence, ranked.id)
                        <= (current_ticket.priority_level, current_ticket.eligible_at,
                            current_ticket.queue_sequence, current_ticket.id)
-                    """
+                    """,
+                        "candidate",
+                    )
                 ),
                 {
                     "branch_id": row["branch_id"],
@@ -304,16 +334,54 @@ async def ticket_response(
             )
             or 0
         )
+        recent_average_seconds = await connection.scalar(
+            text(
+                """
+                SELECT avg(duration_seconds) FROM (
+                    SELECT extract(epoch FROM (closed_at - service_started_at)) AS duration_seconds
+                    FROM tickets
+                    WHERE branch_id = :branch_id AND service_id = :service_id
+                      AND status = 'served' AND service_started_at IS NOT NULL
+                      AND closed_at > service_started_at
+                    ORDER BY closed_at DESC LIMIT 20
+                ) recent
+                """
+            ),
+            {"branch_id": row["branch_id"], "service_id": row["service_id"]},
+        )
+        service_seconds = float(recent_average_seconds or row["average_service_seconds"])
+        service_seconds = min(max(service_seconds, 60), 7200)
         work_ahead = max(position - 1, 0) + active_ahead
         estimated_wait = math.ceil(
-            work_ahead * row["average_service_seconds"] / max(open_windows, 1) / 60
+            work_ahead * service_seconds / max(open_windows, 1) / 60
         )
+        if position <= 2:
+            latest_event_id = await connection.scalar(
+                text(
+                    """
+                    SELECT id FROM ticket_events
+                    WHERE branch_id = :branch_id AND ticket_id = :ticket_id
+                    ORDER BY ticket_version DESC LIMIT 1
+                    """
+                ),
+                {"branch_id": row["branch_id"], "ticket_id": row["id"]},
+            )
+            if latest_event_id is not None:
+                await enqueue_ticket_notification(
+                    connection,
+                    branch_id=row["branch_id"],
+                    event_id=latest_event_id,
+                    ticket_id=row["id"],
+                    channel="demo_approaching",
+                    kind="queue_approaching",
+                    extra_payload={"position": position},
+                )
 
     return TicketResponse(
         **{key: row[key] for key in (
             "id", "branch_id", "service_id", "ticket_number", "source", "status",
             "scheduled_time", "created_at", "updated_at", "window_number", "branch_name",
-            "branch_address", "service_name",
+            "branch_address", "branch_timezone", "service_name",
         )},
         position=position,
         estimated_wait_minutes=estimated_wait,

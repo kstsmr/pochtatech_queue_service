@@ -43,6 +43,7 @@ export type Ticket = {
   estimated_wait_minutes: number | null
   branch_name: string
   branch_address: string
+  branch_timezone: string
   service_name: string
   session_token: string | null
 }
@@ -98,4 +99,78 @@ export type StaffIncident = {
   category: 'technical' | 'operational'
   description: string
   created_at: string
+}
+
+export type ManagerService = Service & {
+  active: boolean
+}
+
+export type ManagerPriority = {
+  version: number
+  actor_id: string
+  created_at: string
+  config: {
+    schema_version: 2
+    rule_version: number
+    early_minutes: number
+    grace_minutes: number
+    max_wait_minutes: Record<'prebooking' | 'qr' | 'walk_in', number>
+    levels: Record<'overdue' | 'appointment' | 'qr' | 'walk_in' | 'late_prebooking', number>
+  }
+}
+
+export type ManagerMetrics = {
+  waiting_count: number
+  average_wait_minutes: number
+  maximum_wait_minutes: number
+  served_today: number
+  open_windows: number
+  total_windows: number
+  window_load_percent: number
+  unresolved_incidents: number
+  unfinished_tickets: number
+}
+
+export type ManagerIncident = StaffIncident & {
+  actor_id: string
+  window_number: number | null
+  ticket_number: number | null
+}
+
+export type ManagerDeviation = {
+  id: string
+  kind: 'wait_limit' | 'stale_call' | 'long_service' | 'unresolved_incident'
+  label: string
+  detail: string
+  occurred_at: string
+}
+
+export type ManagerDashboard = {
+  generated_at: string
+  metrics: ManagerMetrics
+  recommendation: {
+    level: 'normal' | 'attention' | 'critical'
+    title: string
+    detail: string
+    suggested_windows: number
+  }
+  windows: StaffWindow[]
+  queue: StaffTicket[]
+  services: ManagerService[]
+  incidents: ManagerIncident[]
+  deviations: ManagerDeviation[]
+  unfinished_tickets: StaffTicket[]
+  priority_rule: ManagerPriority
+}
+
+export type ManagerPriorityUpdate = {
+  early_minutes: number
+  grace_minutes: number
+  prebooking_max_wait_minutes: number
+  qr_max_wait_minutes: number
+  walk_in_max_wait_minutes: number
+  appointment_level: number
+  qr_level: number
+  walk_in_level: number
+  late_prebooking_level: number
 }

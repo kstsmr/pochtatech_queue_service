@@ -7,7 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.core.priority import effective_priority, queue_order_key  # noqa: E402
+from app.core.priority import bind_priority_sql, effective_priority, queue_order_key  # noqa: E402
 
 
 class PriorityOrderTests(unittest.TestCase):
@@ -77,6 +77,15 @@ class PriorityOrderTests(unittest.TestCase):
             key=lambda item: queue_order_key(item, now=self.now, config=self.config),
         )
         self.assertEqual([item["id"] for item in ordered], ["general", "directed"])
+
+    def test_priority_sql_accepts_only_fixed_alias_and_one_marker(self):
+        statement = bind_priority_sql("ORDER BY /* PRIORITY_EXPRESSION */", "t")
+        self.assertIn("t.source", statement)
+        self.assertNotIn("PRIORITY_EXPRESSION", statement)
+        with self.assertRaises(ValueError):
+            bind_priority_sql("ORDER BY /* PRIORITY_EXPRESSION */", "untrusted")
+        with self.assertRaises(ValueError):
+            bind_priority_sql("SELECT 1", "t")
 
 
 if __name__ == "__main__":

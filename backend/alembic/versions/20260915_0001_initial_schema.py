@@ -43,6 +43,7 @@ def downgrade() -> None:
         DROP TABLE IF EXISTS staff_members;
         DROP TABLE IF EXISTS branch_services;
         DROP TABLE IF EXISTS services;
+        DROP TABLE IF EXISTS branch_working_hours;
         DROP TABLE IF EXISTS branches;
         """
     )

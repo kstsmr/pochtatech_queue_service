@@ -21,6 +21,7 @@ from app.api.schemas import (
     WindowOpenRequest,
 )
 from app.core.errors import ApiError
+from app.core.rate_limit import limit_staff_login
 from app.db.session import get_connection
 from app.services.staff import (
     StaffIdentity,
@@ -75,6 +76,7 @@ async def window_response(
 @router.post("/login", response_model=StaffSessionResponse)
 async def staff_login(
     payload: StaffLoginRequest,
+    _: None = Depends(limit_staff_login),
     connection: AsyncConnection = Depends(get_connection),
 ) -> StaffSessionResponse:
     login_error: ApiError | None = None

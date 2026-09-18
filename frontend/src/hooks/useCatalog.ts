@@ -8,47 +8,69 @@ type Resource<T> = {
   error: string | null
 }
 
-export function useBranches(): Resource<Branch[]> {
-  const [state, setState] = useState<Resource<Branch[]>>({ data: [], loading: true, error: null })
-
-  useEffect(() => {
-    const controller = new AbortController()
-    queueApi.getBranches(controller.signal)
-      .then((data) => setState({ data, loading: false, error: null }))
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        setState({ data: [], loading: false, error: error instanceof Error ? error.message : 'Не удалось загрузить отделения' })
-      })
-    return () => controller.abort()
-  }, [])
-
-  return state
+type BranchResource = Resource<Branch[]> & {
+  search: string
+  setSearch: (value: string) => void
 }
 
-export function useBranchQr(branchId: string): Resource<BranchQr | null> {
-  const [state, setState] = useState<Resource<BranchQr | null> & { branchId: string }>({
-    branchId: '', data: null, loading: false, error: null,
+export function useBranches(): BranchResource {
+  const [search, setSearch] = useState('')
+  const [state, setState] = useState<Resource<Branch[]> & { search: string }>({
+    search: '', data: [], loading: true, error: null,
   })
 
   useEffect(() => {
-    if (!branchId) return
     const controller = new AbortController()
-    queueApi.getBranchQr(branchId, controller.signal)
-      .then((data) => setState({ branchId, data, loading: false, error: null }))
+    const timer = window.setTimeout(() => {
+      queueApi.getBranches(search, controller.signal)
+        .then((data) => setState({ search, data, loading: false, error: null }))
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return
+          setState({
+            search,
+            data: [],
+            loading: false,
+            error: error instanceof Error ? error.message : 'Не удалось загрузить отделения',
+          })
+        })
+    }, search ? 250 : 0)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [search])
+
+  if (state.search !== search) {
+    return { data: state.data, loading: true, error: null, search, setSearch }
+  }
+  return { data: state.data, loading: state.loading, error: state.error, search, setSearch }
+}
+
+export function useBranchQr(branchId: string, publicOrigin: string): Resource<BranchQr | null> {
+  const key = `${branchId}|${publicOrigin}`
+  const [state, setState] = useState<Resource<BranchQr | null> & { key: string }>({
+    key: '', data: null, loading: false, error: null,
+  })
+
+  useEffect(() => {
+    if (!branchId || !publicOrigin) return
+    const controller = new AbortController()
+    queueApi.getBranchQr(branchId, publicOrigin, controller.signal)
+      .then((data) => setState({ key, data, loading: false, error: null }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
         setState({
-          branchId,
+          key,
           data: null,
           loading: false,
           error: error instanceof Error ? error.message : 'Не удалось создать QR-код',
         })
       })
     return () => controller.abort()
-  }, [branchId])
+  }, [branchId, publicOrigin, key])
 
   if (!branchId) return { data: null, loading: false, error: null }
-  if (state.branchId !== branchId) return { data: null, loading: true, error: null }
+  if (state.key !== key) return { data: null, loading: true, error: null }
   return { data: state.data, loading: state.loading, error: state.error }
 }
 

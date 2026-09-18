@@ -33,13 +33,27 @@ export function BookingPage() {
   const navigate = useNavigate()
   const minDate = toDateInputValue(new Date())
   const maxDate = new Date()
-  maxDate.setDate(maxDate.getDate() + 30)
+  maxDate.setDate(maxDate.getDate() + 60)
 
   const selectedBranch = branches.data.find((branch) => branch.id === branchId)
   const selectedService = services.data.find((service) => service.id === serviceId)
   const slots = useSlots(branchId, serviceId, date)
   const selectedSlot = slots.data.find((slot) => slot.id === slotId)
   const isComplete = Boolean(selectedBranch && selectedService && selectedSlot)
+  const timeGroups = [
+    { label: 'Утро', from: 0, to: 12 },
+    { label: 'День', from: 12, to: 17 },
+    { label: 'Вечер', from: 17, to: 24 },
+  ].map((group) => ({
+    ...group,
+    slots: slots.data.filter((slot) => {
+      if (!selectedBranch) return false
+      const hour = Number(new Intl.DateTimeFormat('ru-RU', {
+        hour: '2-digit', hourCycle: 'h23', timeZone: selectedBranch.timezone,
+      }).format(new Date(slot.starts_at)))
+      return hour >= group.from && hour < group.to
+    }),
+  })).filter((group) => group.slots.length > 0)
 
   function resetSubmission() {
     setSubmitError(null)
@@ -79,9 +93,9 @@ export function BookingPage() {
     <section className="flow-page">
       <div className="flow-heading">
         <Link className="back-link" to="/"><ArrowLeft size={18} aria-hidden="true" /> Назад</Link>
-        <p className="route-kicker"><span aria-hidden="true">02</span> Запись ко времени</p>
-        <h1>Соберите маршрут визита</h1>
-        <p>Выберите отделение, услугу и свободное время. После подтверждения место будет зарезервировано.</p>
+        <p className="route-kicker"><span aria-hidden="true">02</span> Предварительная запись</p>
+        <h1>Запись в отделение</h1>
+        <p>Выберите отделение, услугу и время. Свободные интервалы рассчитаны по графику и числу окон.</p>
       </div>
 
       <ol className="flow-status" aria-label="Прогресс записи">
@@ -93,13 +107,15 @@ export function BookingPage() {
       <div className="booking-layout">
         <form className="booking-form" onSubmit={submit}>
           <fieldset>
-            <legend><span>1</span> Куда и зачем</legend>
+            <legend><span>1</span> Отделение и услуга</legend>
             <BranchSelect
               branches={branches.data}
               value={branchId}
               loading={branches.loading}
               error={branches.error}
               onChange={changeBranch}
+              search={branches.search}
+              onSearch={branches.setSearch}
               hint="Можно изменить отделение — список услуг обновится"
             />
             <ServiceSelect
@@ -128,8 +144,11 @@ export function BookingPage() {
             </div>
             <div className="form-field">
               <span className="field-label">Время</span>
-              <div className="time-grid" role="radiogroup" aria-label="Время визита">
-                {slots.data.map((slot) => {
+              <div className="time-groups" role="radiogroup" aria-label="Время визита">
+                {timeGroups.map((group) => <div className="time-group" key={group.label}>
+                  <strong className="time-group-title">{group.label}</strong>
+                  <div className="time-grid">
+                  {group.slots.map((slot) => {
                   const option = selectedBranch
                     ? new Date(slot.starts_at).toLocaleTimeString('ru-RU', {
                         hour: '2-digit', minute: '2-digit', timeZone: selectedBranch.timezone,
@@ -147,7 +166,9 @@ export function BookingPage() {
                     {option}
                   </button>
                   )
-                })}
+                  })}
+                  </div>
+                </div>)}
               </div>
               {slots.loading && <p className="field-message hint" role="status">Проверяем свободное время…</p>}
               {!slots.loading && serviceId && !slots.error && slots.data.length === 0 && (
@@ -165,14 +186,14 @@ export function BookingPage() {
         </form>
 
         <aside className="visit-summary" aria-label="Сводка визита">
-          <p className="summary-label">Ваш маршрут</p>
-          <div className="summary-code" aria-hidden="true">МСК / 01</div>
+          <p className="summary-label">Детали записи</p>
+          <div className="summary-code" aria-hidden="true">{selectedBranch?.postal_code ?? 'ПОЧТА'}</div>
           <dl>
             <div><dt>Отделение</dt><dd>{selectedBranch?.address ?? 'Не выбрано'}</dd></div>
             <div><dt>Услуга</dt><dd>{selectedService?.name ?? 'Не выбрана'}</dd></div>
             <div><dt>Время</dt><dd>{selectedTime ? `${date.split('-').reverse().join('.')} · ${selectedTime}` : 'Не выбрано'}</dd></div>
           </dl>
-          <p className="summary-footnote"><Clock3 size={17} aria-hidden="true" /> Приходите за 5 минут до выбранного времени.</p>
+          <p className="summary-footnote"><Clock3 size={17} aria-hidden="true" /> Приходите немного заранее — талон станет активным до выбранного времени.</p>
         </aside>
       </div>
     </section>
